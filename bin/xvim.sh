@@ -67,19 +67,31 @@ usage(){
 
 xvim -- a cool alternative to gvim using xterm
 
-Use like normal vim, :q closes the xterm window.
-usage:
-    xvim [-h | --help] [-mp] [vim options] [files] [-]
+This script basically does "xterm -e vim \$@", whith some bells and whistles
+like man mage viewing, gentle TERM handling etc. Use like normal vim, :q closes
+the xterm window.
 
+usage:
+------
+xvim [-h | --help] [-mp] [vim options] [files | -] 
+
+args:
+-----
+files : anything that vim would handle, use "-" to read from stdin
+
+options:
+--------
+-h : this help
+-mp : Use some vim options to display man pages. Most likely, you will do
+        $ man <foo> | xvim -mp -
+      May be slow for big man pages.  
+
+notes:
+------
 Every argument will be regarded as vim option or file and passed to it without
 checking. You may have to use quoting:
     $ vim -c 'set tw=72'
     $ xvim -c \\'set tw=72\\'
-
--h will show the xvim help, not the vim help.
-
-For viewing man pages, do
-    man <foo> | xvim -mp -
 eof
 }
 
@@ -88,8 +100,19 @@ eof
 ##debug=true
 debug=false
 
+dbg_msg(){
+    # use global var $debug
+    $debug && echo "xvim: DEBUG: $@"
+}
+
+msg(){
+    # use global var $debug
+    echo "xvim: $@"
+}
+
 if $debug; then
     debug_log=/tmp/xvim-debug.$$
+    echo "xvim: debug log: $debug_log"
     echo '' > $debug_log
     exec 6>&1     
     exec 7>&2     
@@ -99,15 +122,15 @@ if $debug; then
     exec 2>>$debug_log
 fi
 
-$debug && date
+dbg_msg $(date)
 
 # parse cmd line
 prms="$@"
-$debug && echo "xvim: prms: $prms"
+dbg_msg "prms: $prms"
 read_from_stdin=false
 man_mode=false
 while [ $# -gt 0 ]; do
-    $debug && echo 'xvim: $1:' $1
+    dbg_msg "xvim: \$1: $1"
     case $1 in 
         -h | --help) 
             usage
@@ -117,7 +140,7 @@ while [ $# -gt 0 ]; do
             man_mode=true
             ;;
         -)
-            echo "xvim: reading from stdin"
+            msg "reading from stdin"
             read_from_stdin=true
             ;;
     esac
@@ -139,20 +162,23 @@ fi
 bashrc_env_lst="$HOME/.profile $HOME/.bashrc $HOME/.bashrc_profile"
 if [ "$TERM" = "dumb" ]; then
     for bashrc_env in $bashrc_env_lst; do
-        $debug && echo "TERM=dumb, trying $bashrc_env ..."
+        dbg_msg "TERM=dumb, trying $bashrc_env ..."
         if [ -f $bashrc_env ]; then
             . $bashrc_env
-            [ "$TERM" != "dumb" ] && echo '... ok' && break
+            if [ "$TERM" != "dumb" ]; then 
+                dbg_msg '... ok' 
+                break
+            fi                
         fi            
     done
 fi
 
-$debug && echo "xvim: using TERM=$TERM"
+dbg_msg "using TERM=$TERM"
 vim_opts=$vim_opts" -T $TERM"
-$debug && echo "xvim: \$vim_opts: $vim_opts"
+dbg_msg "\$vim_opts: $vim_opts"
 
 _pwd=$(pwd)
-title_base="xvim: [$USER@$(hostname) ${_pwd/$HOME/~}]"
+title_base="xvim: [$USER@$(hostname) ${_pwd/$HOME/~}]" # bashism?
 if $read_from_stdin; then
     # Emulate stuff like `cat <some_file> | vim -`.
     #
@@ -173,13 +199,14 @@ if $read_from_stdin; then
 
     # Create a tmp file in /tmp/.
     tmpf=$(mktemp)
-    echo "xvim: filling tmp file, wait ..."
+    msg "filling tmp file, wait ..."
 ##    while IFS="" read line; do
     while line=$(line); do
         # Must use `"$line"' instead of `$line' to display all whitespaces
         # properly.
         echo -e "$line" >> $tmpf
     done
+    msg "... done"
     if $man_mode; then
         xterm -T "$title_base stdin" -e "cat $tmpf | col -bx | vim $vim_opts -"
     else
@@ -189,7 +216,7 @@ if $read_from_stdin; then
     rm $tmpf
 else
     cmd="xterm -T \"$title_base $prms\" -e \"vim $vim_opts $prms\""
-    $debug && echo "calling: $cmd"
+    dbg_msg "calling: $cmd"
     eval $cmd
 fi
 
