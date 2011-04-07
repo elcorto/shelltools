@@ -15,8 +15,8 @@ with that name. For symlinks, the link target is copied, with -d, the symlink
 (not the target) is deleted:
 
     file/dir    symlink
-    cp          cp -L
--d  mv          cp -L && rm   
+    cp          cp -L       (copy target)
+-d  mv          cp -L && rm (copy target && remove link)  
 
 usage:
 ------
@@ -82,7 +82,13 @@ for src in $src_lst; do
     # sanity check
     if ! [ -f $dst -o -d $dst -o -L $dst ]; then
         cmd="cp -rvL $src $dst"
-        $delete && cmd="$cmd && rm -rv $src"
+        if $delete; then 
+            if [ -L $src ]; then
+                cmd="$cmd && rm -rv $src"
+            else
+                cmd="mv $src $dst"
+            fi                
+        fi
         $simulate && echo $cmd || eval $cmd
     else
         echo "$prog: $dst exists"
