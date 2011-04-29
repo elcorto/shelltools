@@ -42,7 +42,15 @@ endif
 let &textwidth=s:my_tw
 
 set formatoptions+=r2
+" format items with '*' (while typing and with visual + gq):
+"   * foo bar
+"     baz
+"   * bonk 
+" Need to removed C-style /* .. * .. */ comments from 'comments' for that to
+" work. Maybe there is a better way using also 'formatlistpat'? But so far, we
+" don't code C, so we don't need the comments anyway.
 set comments+=fb:*
+set comments-=s1:/*,mb:*,ex:*/
 
 " Use an autocommand for the vim file type (e.g. any vimrc) to add vim-script
 " comments char `"'. Another option is to place 
