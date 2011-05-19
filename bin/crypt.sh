@@ -135,7 +135,15 @@ decrypt(){
 }
 
 echo -e "passphrase: \c"
-read -s pp
+read -s pp1
+echo -e "\nrepeat passphrase: \c"
+read -s pp2
+if [ x"$pp1" != x"$pp2" ]; then 
+    echo -e "\npassphrase not equal"
+    exit 1
+fi
+echo ""
+pp=$pp1
 for obj in $@; do
     is_dir=false
     is_file=false
