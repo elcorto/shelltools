@@ -23,40 +23,62 @@
 import sys
 import os
 import time
+import optparse
 import numpy as np
 
+usage = """
+Filter files matching some time spec out of a list of files or sort files by
+last modification time.
 
-def print_help():
-    print """
-Filter files matching some time spec out of a list of files.
+usage:
+------
+age.py [-h] [-o <offset> | -s] <files> 
 
-age.py <offset> <files>
-<files> | age.py <offset>
+age.py <files> -o <offset> 
+age.py <files> -s
+<files> | age.py -o <offset>
+<files> | age.py -s
+
+Use either -o/--offset or -s/--sort .
 
 args:
 -----
 files : list of filenames "file1 file2 ..." if given as cmd line args
     or one file per line if piped in (e.g. output of locate)
-offset: <number>[smhdwMy]
-    <number> : any string that Python understands as a number
-        number < 0 : files younger than abs(<offset>)
-        number > 0 : files older than <offset>
-    modifier : s(seconds) [default], m(minutes), h(hours), d(days), w(weeks),
-        M(months), y(years)
+
+options:
+--------
+-h, --help : show this help message and exit
+-s, --sort : Sort files, most recent last (like ls -rt).
+-o OFFSET, --offset=OFFSET : Time offset 
+    Format <number><modifier>, where 
+    <number> : any string that Python understands as a number. 
+        number < 0 : files younger than abs(<offset>), e.g.: -10
+        number > 0 : files older than <offset>, e.g.: 10, +10
+    <modifier> : s(seconds) [default], m(minutes), h(hours), d(days), 
+        w(weeks), M(months), y(years)
 
 example:
 --------
 Files younger than 10 minutes.
-$ find -name pw.in | age.py -10m 
+$ find -name pw.in | age.py -o -10m 
 $ find -name pw.in -mmin -10
 
 Files older than half a year.
-$ age.py 0.5y $(locate pw.in)
-$ age.py +128d $(locate pw.in)
+$ age.py -o 0.5y $(locate pw.in)
+$ age.py -o +128d $(locate pw.in)
 $ find / -name pw.in -mtime 3840
 
 Files between 3 and 1 month old.
-$ locate pw.in | age.py -3M | age.py 1M
+$ locate pw.in | age.py -o -3M | age.py -o 1M
+
+Sort files.
+$ ls -1rt 
+$ ls -1 | age.py -s
+$ locate ... | age.py -s
+
+Sort files from last week, print last modification time.
+$ find -name pw.in | age.py -o -1w | age.py -s | xargs -l stat -c '%y %n'
 """
 
 def parse_offset(st):
@@ -75,21 +97,37 @@ def parse_offset(st):
 
 
 if __name__ == '__main__':
-
-    # no need for fancy optparse
-    if sys.argv[1] in ['-h', '--help']:
-        print_help()
-        sys.exit()
     
-    # sys.argv: 
-    #   ['age.py', '+5m', 'file1', 'file2']
-    #   ['age.py', '+5m'] # stdin 
-    if len(sys.argv) == 1:
-        raise StandardError("missing time offset")
-    offset = parse_offset(sys.argv[1])
+    # optparse: One cannot format help text w/ newlines, which we need
+    # for --offset. Until everybody has python 2.7+ and we can use argparse, we
+    # write the whole help string by ourselves and ditch automatic help
+    # formatting.  
+    sh = optparse.SUPPRESS_HELP
+    parser = optparse.OptionParser(add_help_option=False)
+    parser.add_option("-h", "--help", action="store_true", default=False, 
+        help=sh)
+    parser.add_option("-s", "--sort", action="store_true", default=False, 
+        help=sh)
+    parser.add_option("-o", "--offset", default=None, 
+        help=sh)
+    opts, args = parser.parse_args()
+    if opts.help:
+        print usage
+        sys.exit()
+
+    if (opts.offset is None) and (not opts.sort):
+            raise StandardError("use -o/--offset or -s/--sort")
+    elif (opts.offset is not None) and (opts.sort):
+            raise StandardError("use only one of -o/--offset or -s/--sort")
+    elif opts.offset is not None:
+        offset = parse_offset(opts.offset)
+    # else opts.sort == True        
     
     # first try cmd line, then stdin
-    files = sys.argv[2:]
+    # args: 
+    #   cmdline: ['file1', 'file2']
+    #   stdin:   []
+    files = args
     if files == []:
         files = [x.strip() for x in sys.stdin.readlines()]
     if files == []:    
@@ -101,12 +139,15 @@ if __name__ == '__main__':
     # Epoch. We use "mtime", the last modification time to determine the file's
     # age.
     mtimes = np.array([os.stat(fn)[8] for fn in files])
-    delta = time.time() - mtimes 
-    # numpy rocks!        
-    if offset < 0:
-        idx = np.where(delta < -offset)
-    else:        
-        idx = np.where(delta > offset)
+    if opts.sort:
+        idx = np.argsort(mtimes)
+    else:
+        delta = time.time() - mtimes 
+        # numpy rocks!        
+        if offset < 0:
+            idx = np.where(delta < -offset)
+        else:        
+            idx = np.where(delta > offset)
     # numpy rocks!        
     for fn in np.asarray(files)[idx]:
         print(fn)
