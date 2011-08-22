@@ -15,15 +15,7 @@ pat=$(hg qtop)
 ser=$(hg qseries)
 if ! echo "$ser" | grep "$pat" > /dev/null; then
     echo $pat
-    exit 0
-fi    
-
-##for nn in $ser; do
-##    if echo $nn | grep $pat > /dev/null; then
-##        echo "* $nn"
-##    else
-##        echo "  $nn"
-##    fi
-##done    
-##echo "$ser" | sed -e "s/^/  /g" -e "s/^  $pat/* $pat/g"
+fi
+# If $pat not in $ser, then only output list of patches prepended with
+# whitespace.
 echo "$ser" | sed -e "/$pat/!s/^/  /g" -e "/$pat/s/^$pat/* $pat/g"
