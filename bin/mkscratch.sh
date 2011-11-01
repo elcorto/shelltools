@@ -122,10 +122,14 @@ for h in $hosts; do
     echo "host: $h"
     cmd="mkdir -pv $scratch_base; chmod o+rwx $scratch_base; chown root:root \
 $scratch_base;"
-    for u in $users; do
-        scratch=$scratch_base/$u
-	[ -z "$group" ] && group=$u
-        cmd="$cmd mkdir -pv $scratch; chown $u:$group $scratch;"
+    for uu in $users; do
+        if [ -z "$group" ]; then
+            gg=$uu
+        else
+            gg=$group
+        fi            
+        scratch=$scratch_base/$uu
+        cmd="$cmd mkdir -pv $scratch; chown $uu:$gg $scratch;"
     done
     cmd="ssh $ssh_opts $h '$cmd'"
     execute "$cmd"
