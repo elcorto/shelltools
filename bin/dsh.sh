@@ -26,24 +26,14 @@ options:
 -s : simulate, this is the same as verbose but commands are not executed
 -f : path to hostfile 
     [default: $hostfile]
--o : options to ssh 
+-o : options to ssh (e.g. -o '-o StrictHostKeyChecking=yes'), use proper quoting
+-F : fork (use "ssh ... &")
+-a : annotate (prepend output from each node with it's hostname)
 
 examples:
 ---------
-Commands without options (-<options>) don't need \`--'. 
-    $ $prog w
-
-Others do. Otherwise \`-h' would be interpreted as option to $prog.
-    $ $prog -- df -h
-Quoting also works.    
-    $ $prog "df -h"
-
-Some commands must quoted b/c \`--' does not help. So safest way is to always
-quote the commands.
-    $ $prog "cd /usr/local/lib && ls -l"
-
-Clean scratch dirs on only quad1 and quad2.
-    $ echo -e "quad1\nquad2" > hosts && $prog -f hosts 'rm -r /scratch/foo/*'
+$ $prog -Fa -f hostfile -- "cd /usr/local/lib && ls -l; w; hostname"
+$ echo -e "quad1\nquad2" > hostfile && $prog -f hostfile 'rm -r /scratch/foo/*'
 
 notes:
 ------
@@ -56,9 +46,11 @@ EOF
 
 simulate=false
 verbose=false
-ssh_opts=""
+ssh_opts=
+fork=false
+annotate=false
 
-cmdline=$(getopt -o d:vcsf:ho: -- "$@")
+cmdline=$(getopt -o d:vcsFaf:ho: -- "$@")
 eval set -- "$cmdline"
 ##echo ">>$cmdline<<"
 while [ $# -gt 0 ]; do
@@ -72,6 +64,12 @@ while [ $# -gt 0 ]; do
         -f)
             hostfile=$2
             shift
+            ;;
+        -F)
+            fork=true
+            ;;
+        -a)
+            annotate=true
             ;;
         -o)
             ssh_opts="$ssh_opts $2"
@@ -114,6 +112,15 @@ $verbose && echo $hosts
 host_cmd="$@"
 for host in $hosts; do
     cmd="ssh $ssh_opts $host '$host_cmd'"
-    $verbose && echo "$cmd" || echo "$host:"
-    $simulate || eval "$cmd"
+    if $annotate; then
+        cmd="$cmd | sed -re 's/^/${host}: /g'"
+    fi        
+    $verbose && echo "$cmd"
+    if $fork; then
+        $simulate || eval "$cmd" &
+    else        
+        $simulate || eval "$cmd"
+    fi
 done
+
+exit 0
