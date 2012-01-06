@@ -18,7 +18,8 @@ $prog [<options>] [-f <hostfile>] [--] [<command>]
 
 args:
 -----
-<command> : command to execute on all hosts in the hostfile
+<command> : command to execute on all hosts in the hostfile, if missing then
+    stdin is used
 
 options:
 --------
@@ -34,6 +35,7 @@ examples:
 ---------
 $ $prog -Fa -f hostfile -- "cd /usr/local/lib && ls -l; w; hostname"
 $ echo -e "quad1\nquad2" > hostfile && $prog -f hostfile 'rm -r /scratch/foo/*'
+$ cat script.sh | $prog -Fa -f hostfile
 
 notes:
 ------
@@ -109,7 +111,12 @@ fi
 hosts=$(awk '/^\s*[^#]/' $hostfile)
 $verbose && echo $hosts
 
-host_cmd="$@"
+if [ $# -eq 0 ]; then
+    host_cmd="$(cat)"
+else
+    host_cmd="$@"
+fi
+
 for host in $hosts; do
     cmd="ssh $ssh_opts $host '$host_cmd'"
     if $annotate; then
