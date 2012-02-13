@@ -6,6 +6,7 @@ lswdir=./lsw
 tgtdir=.
 configfile=$HOME/.lswrc
 simulate=false
+show=false
 
 prog=$(basename $0)
 usage(){
@@ -20,7 +21,7 @@ packages which you just copy somewhere.
 
 usage:
 ------
-$prog [-t <tgtdir>] [-d <lswdir>] [-hs] <real> <link>
+$prog [-t <tgtdir>] [-d <lswdir>] [-hsS] [<real> <link>]
 
 args:
 -----
@@ -32,6 +33,7 @@ options:
 -t : target dir [default: $tgtdir]
 -d : lsw dir [default: $lswdir]
 -h : help
+-S : show possible sources <lswdir>/*, doesn't need <real> and <link> args
 -s : simulate
 
 examples:
@@ -93,12 +95,15 @@ action(){
 # overriding confing file.
 [ -f $configfile -o -e $configfile ] && . $configfile
 
-cmdline=$(getopt -o hst:d:c: -- "$@")
+cmdline=$(getopt -o hsSt:d:c: -- "$@")
 eval set -- "$cmdline"
 while [ $# -gt 0 ]; do
     case "$1" in 
         -s)
             simulate=true
+            ;;
+        -S)
+            show=true
             ;;
         -t)
             tgtdir=$2
@@ -123,6 +128,23 @@ while [ $# -gt 0 ]; do
     esac
     shift
 done
+
+if $show; then
+    # find current links in $tgtdir
+    links=$(find $tgtdir -type l | xargs -l ls -l | grep "$lswdir")
+    cat << EOF
+dirs:    
+    tgtdir=$tgtdir
+    lswdir=$lswdir
+
+possible sources <real> in <lswdir>:
+$(ls -1 $lswdir | sed 's/^/    /g')
+
+current state:
+    $links
+EOF
+exit 0
+fi
 
 if [ $# -ne 2 ]; then
     err "number of args not 2"
