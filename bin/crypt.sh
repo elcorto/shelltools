@@ -4,19 +4,17 @@ prog=$(basename $0)
 
 usage(){
     cat << eof
-Encypt/decrypt files and dirs with the same passphrase using gpg -c (symmetric
-encryption). No private/public keys involved here. Directories are tar'ed
-before encryption. The usage is similar to gpg. The passphrase is queried
-interactively (or it can be piped - useful for scripting, may be insecure).
+Encypt/decrypt multiple files and dirs with gpg -e (use keys) at once. Dirs are
+tar'ed before. You may delete intermediate *.tar files (see -d).
 
-$prog [--delete-all-src] [-dsch] <files> <dirs>
+$prog [--delete-all-src] [-dseh] <files> <dirs>
 
 --delete-all-src : delete all sources: <files>, <dirs> after encryption,
      <files>.gpg, <dirs>.tar.gpg after decryption, use with care
 -d : delete intermediate temp files but leave sources, this affects
     <dirs>.tar after {en,de}cryption
 -s : simulate
--c : encrypt, if not used then default is to decrypt (like gpg and gpg -c) 
+-e : encrypt, if not used then default is to decrypt (like gpg and gpg -e) 
 
 The safest thing is to not delete any files at all automatically. But if
 YKWYAD, you may use -d. --delete-all-arc is not recommened. Use only after
@@ -24,7 +22,7 @@ careful testing.
 
 usage:
     encrypt:  
-    $prog -c file1 dir1 file2
+    $prog -e file1 dir1 file2
     
     decrypt:
     $prog file1.gpg dir1.tar.gpg file2.gpg 
@@ -41,44 +39,44 @@ eof
 #@@echo 'dshjafanj' > dir1/file3
 #@@ls -l
 #@@echo "-------- encrypt simulate del all ------"
-#@@echo 'sec' | crypt.sh -cs --delete-all-src file1 file2 dir1/
+#@@crypt.sh -es --delete-all-src file1 file2 dir1/
 #@@echo "-------- encrypt del all ---------------"
-#@@echo 'sec' | crypt.sh -c --delete-all-src file1 file2 dir1/
+#@@crypt.sh -e --delete-all-src file1 file2 dir1/
 #@@ls -l
 #@@echo "-------- decrypt simulate del all ------"
-#@@echo 'sec' | crypt.sh -s --delete-all-src *.gpg 
+#@@crypt.sh -s --delete-all-src *.gpg 
 #@@echo "-------- decrypt del all ---------------"
-#@@echo 'sec' | crypt.sh --delete-all-src *.gpg 
+#@@crypt.sh --delete-all-src *.gpg 
 #@@ls -l
 #@@echo "-------- encrypt simulate del tmp ------"
-#@@echo 'sec' | crypt.sh -cds file1 file2 dir1/
+#@@crypt.sh -eds file1 file2 dir1/
 #@@echo "-------- encrypt del tmp ---------------"
-#@@echo 'sec' | crypt.sh -cd file1 file2 dir1/
+#@@crypt.sh -ed file1 file2 dir1/
 #@@ls -l
 #@@echo "-------- decrypt simulate del tmp ------"
-#@@echo 'sec' | crypt.sh -ds *.gpg 
+#@@crypt.sh -ds *.gpg 
 #@@echo "-------- decrypt del tmp ---------------"
-#@@echo 'sec' | crypt.sh -d *.gpg 
+#@@crypt.sh -d *.gpg 
 #@@ls -l
 #@@rm *.gpg
 #@@echo "-----"
 #@@ls -l
 #@@echo "-------- encrypt simulate safe ---------"
-#@@echo 'sec' | crypt.sh -cs file1 file2 dir1/
+#@@crypt.sh -es file1 file2 dir1/
 #@@echo "-------- encrypt safe ------------------"
-#@@echo 'sec' | crypt.sh -c file1 file2 dir1/
+#@@crypt.sh -e file1 file2 dir1/
 #@@ls -l
 #@@echo "-------- decrypt simulate safe ---------"
-#@@echo 'sec' | crypt.sh -s *.gpg 
+#@@crypt.sh -s *.gpg 
 #@@echo "-------- decrypt safe ------------------"
-#@@echo 'sec' | crypt.sh *.gpg 
+#@@crypt.sh *.gpg 
 #@@ls -l
 
 crypt=false
 simulate=false
 delete_all_src=false
 delete_tmp=false
-cmdline=$(getopt -o dsch -l delete-all-src -n $prog -- "$@")
+cmdline=$(getopt -o dsceh -l delete-all-src -n $prog -- "$@")
 eval set -- "$cmdline"
 while [ $# -gt 0 ]; do
     case $1 in
@@ -91,7 +89,7 @@ while [ $# -gt 0 ]; do
         -s)
             simulate=true
             ;;
-        -c)
+        -e)
             crypt=true
             ;;
         -h)
@@ -121,29 +119,19 @@ execute(){
 }
 
 encrypt(){
-    local pp=$1
-    local to_process=$2
-    echo "gpg -c $to_process ..."
-    execute "gpg -q --passphrase $pp --force-mdc -c $to_process"
+    local to_process=$1
+    echo "gpg -e $to_process ..."
+    local extra=
+    [ -n "$GPGKEY" ] && extra="-r $GPGKEY"
+    execute "gpg $extra -e $to_process"
 }
 
 decrypt(){
-    local pp=$1
-    local to_process=$2
+    local to_process=$1
     echo "gpg $to_process ..."
-    execute "gpg -q --passphrase $pp $to_process"
+    execute "gpg $to_process"
 }
 
-echo -e "passphrase: \c"
-read -s pp1
-echo -e "\nrepeat passphrase: \c"
-read -s pp2
-if [ x"$pp1" != x"$pp2" ]; then 
-    echo -e "\npassphrase not equal"
-    exit 1
-fi
-echo ""
-pp=$pp1
 for obj in $@; do
     is_dir=false
     is_file=false
@@ -152,7 +140,7 @@ for obj in $@; do
             is_file=true
             echo "file: $obj"
             to_process=$obj # file
-            encrypt $pp $to_process
+            encrypt $to_process
             $delete_all_src && execute "rm -v $to_process"
         elif [ -d $obj ]; then
             is_dir=true
@@ -160,7 +148,7 @@ for obj in $@; do
             to_process=$(echo "$obj" | sed -re 's|/*\s*$||').tar # dir.tar
             echo "tar ..."
             execute "tar -cvf $to_process $obj"
-            encrypt $pp $to_process
+            encrypt $to_process
             $delete_all_src || $delete_tmp && execute "rm -v $to_process"
             $delete_all_src && execute "rm -rv $obj"
         else
@@ -183,7 +171,7 @@ for obj in $@; do
             exit 1
         fi
         to_process=$obj
-        decrypt $pp $to_process
+        decrypt $to_process
         $delete_all_src && execute "rm -rv $to_process"
         if $is_dir; then
             echo "untar ..."
