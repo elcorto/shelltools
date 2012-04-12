@@ -17,13 +17,12 @@ options:
     [$bin_prefix]
 -c | --config-prefix : config files will be copied to <config_prefix>/
     [$config_prefix]
--d : prepend this char to each config file [$config_file_start]
+-C | --config-file-start : prepend this char to each config file [$config_file_start]
 EOF
 }
 
-cmdline=$(getopt -o hsp:c: -l bin-prefix:config-prefix: -- "$@")
+cmdline=$(getopt -o hsp:c:C: -l bin-prefix:config-prefix:config-file-start: -- "$@")
 eval set -- "$cmdline"
-##echo ">>$cmdline<<"
 while [ $# -gt 0 ]; do
     case "$1" in 
         -s)
@@ -35,6 +34,10 @@ while [ $# -gt 0 ]; do
             ;;
         -c|--config-prefix)
             config_prefix=$2
+            shift
+            ;;
+        -C|--config-file-start)
+            config_file_start=$2
             shift
             ;;
         -h)
@@ -63,7 +66,10 @@ done
 
 cmd="cp -v bin/* $bin_tgt/;"
 for ff in $(ls config/); do
-    cmd=$cmd" cp -v config/$ff $config_prefix/${config_file_start}$ff"
+    src=config/$ff
+    tgt=$config_prefix/${config_file_start}$ff
+    cmd=$cmd" if [ -f $tgt ]; then bash bin/backup.sh -p '.bak' $tgt; fi; \
+        cp -v $src $tgt;"
 done
 
 $simulate && echo $cmd || eval "$cmd"
