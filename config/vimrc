@@ -152,13 +152,15 @@ set bg=light
 
 " in ~/.bashrc, set `export TERM="xterm-256color"' to let vim know that we have
 " a 256 color terminal, google for '256colors.pl' to see which color number
-" (0-255) is what
+" (0-255) is what.
+"
+" The settings below match nicely with these ~/.Xdefaults-<hostname>:
+"   xterm*background: gray15
+"   xterm*foreground: gray80
 if &term == s:my_xterm
-    ""hi Comment ctermfg=darkgray
-    ""hi Comment ctermfg=241
     hi Comment ctermfg=35
-    ""hi Constant ctermfg=brown
-    ""hi Statement ctermfg=yellow
+    hi Constant ctermfg=brown
+    hi Statement ctermfg=lightgreen
 else
     hi Comment ctermfg=darkgreen
 endif    
