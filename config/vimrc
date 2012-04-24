@@ -17,7 +17,10 @@ let s:my_xterm="xterm-256color"
 " autocommands, place the definitions *after* this.
 :au!
 
+set nohls
+set noshowmatch
 set modeline
+set modelines=5
 set autoindent
 set expandtab
 set shiftwidth=4
@@ -30,10 +33,6 @@ set nojoinspaces
 if &term == s:my_xterm
     set ttyfast
 endif    
-
-" Make search case-insensitive. Use \C in search pattern to switch case
-" sensitivity on.
-" set ignorecase
 
 " set textwidth=s:my_tw does not work:
 " vim's way to set an option to the value of a script 
@@ -55,23 +54,13 @@ set comments-=s1:/*,mb:*,ex:*/
 " Use an autocommand for the vim file type (e.g. any vimrc) to add vim-script
 " comments char `"'. Another option is to place 
 "     setlocal comments+=:\"
-" in ~/.vim/ftplugin/vim.vim . But fortunatelly, thers already is a vim
+" in ~/.vim/ftplugin/vim.vim . But fortunatelly, there already is a vim
 " ftplugin in /usr/share/vim/vimcurrent/ftplugin/vim.vim (Debian). In order to
 " use that, enable plugins. How do we do that? See below under 'Plugins'.
 "
 ""au FileType vim setlocal comments+=:\"
 
-"------------------------------------------------------------------------------
-" override some /etc/vimrc on openSUSE
-
-set noshowmatch
-" They set modlines=0 and therby disable modelines at all for security .. well
-" ok. For the same reason, Debian also sets 'nomodeline' in /etc/vim/vimrc.
-set modelines=5
-
-"------------------------------------------------------------------------------
 " Some Debian-stuff from /etc/vim/vimrc that we like.
-
 " We want this file to be self-contained and cross-platform. So we need to set
 " *all* stuff here. This is also useful for `vim -u ~/.vimrc`.
 set backspace=indent,eol,start
