@@ -7,25 +7,33 @@ usage(){
 Encypt/decrypt multiple files and dirs with gpg -e (use keys) at once. Dirs are
 tar'ed before. You may delete intermediate *.tar files (see -d).
 
+usage:
+------
 $prog [--delete-all-src] [-dseh] <files> <dirs>
 
+options:
+--------
 --delete-all-src : delete all sources: <files>, <dirs> after encryption,
      <files>.gpg, <dirs>.tar.gpg after decryption, use with care
 -d : delete intermediate temp files but leave sources, this affects
     <dirs>.tar after {en,de}cryption
 -s : simulate
--e : encrypt, if not used then default is to decrypt (like gpg and gpg -e) 
+-e : encrypt, if not used then default is to decrypt (like gpg and gpg -e),
+    if the env var \$GPGKEY is set, we use "gpg -r \$GPGKEY -e ..."
 
+examples:
+---------
+encrypt:  
+$prog -e file1 dir1 file2
+
+decrypt:
+$prog file1.gpg dir1.tar.gpg file2.gpg 
+
+notes:
+------
 The safest thing is to not delete any files at all automatically. But if
 YKWYAD, you may use -d. --delete-all-arc is not recommened. Use only after
 careful testing.
-
-usage:
-    encrypt:  
-    $prog -e file1 dir1 file2
-    
-    decrypt:
-    $prog file1.gpg dir1.tar.gpg file2.gpg 
 eof
 }
 
