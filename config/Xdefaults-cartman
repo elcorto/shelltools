@@ -27,7 +27,7 @@ xterm*termName: xterm-256color
 #endif
 !-----------------------------------------------------------------------------
 
-! yeah cool
+# dark bg
 xterm*background: gray15
 xterm*foreground: gray80
 

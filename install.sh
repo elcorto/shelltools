@@ -3,11 +3,14 @@
 prog=$(basename $0)
 simulate=false
 bin_path=$HOME/soft/bin
-config_path=$HOME
+config_path=
 config_file_start="."
 usage(){
     cat <<EOF
 $prog <options>
+
+Copy bin/* and config/* files. By default only bin/* is copied. Config files
+are only copied if --config-path is set.
 
 options:
 --------
@@ -58,18 +61,22 @@ while [ $# -gt 0 ]; do
 done
 
 for dr in $bin_path $config_path; do
-    if ! [ -d $dr ]; then 
-        echo "error: $dr doen't exist"
-        exit 1
-    fi    
+    if [ -n "$dr" ]; then
+        echo "processing: $dr"
+        if ! [ -d $dr ]; then 
+            echo "error: dir '$dr' doen't exist"
+            exit 1
+        fi
+    fi
 done
 
 cmd="cp -v bin/* $bin_path/;"
-for ff in $(ls config/); do
-    src=config/$ff
-    tgt=$config_path/${config_file_start}$ff
-    cmd=$cmd" if [ -f $tgt ]; then bash bin/backup.sh -p '.bak' $tgt; fi; \
-        cp -v $src $tgt;"
-done
-
+if [ -n "$config_path" ]; then
+    for ff in $(ls config/); do
+        src=config/$ff
+        tgt=$config_path/${config_file_start}$ff
+        cmd=$cmd" if [ -f $tgt ]; then bash bin/backup.sh -p '.bak' $tgt; fi; \
+            cp -v $src $tgt;"
+    done
+fi
 $simulate && echo $cmd || eval "$cmd"

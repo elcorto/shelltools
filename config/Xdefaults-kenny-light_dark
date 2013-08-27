@@ -27,9 +27,12 @@ xterm*termName: xterm-256color
 #endif
 !-----------------------------------------------------------------------------
 
-! yeah cool
+# dark bg
 xterm*background: gray15
 xterm*foreground: gray80
+# light bg
+##xterm*background: lightyellow
+##xterm*foreground: black
 
 ! turn bold into normal, but bright white
 xterm*colorBDMode: true
