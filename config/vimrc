@@ -12,6 +12,9 @@ behave xterm
 let s:my_tw=79
 let s:my_xterm="xterm-256color"
 
+""let s:my_xterm_bg="light"
+let s:my_xterm_bg="dark"
+
 " System config files (/etc/vimrc etc.) are sourced first. Remove all annoyiny
 " autocommands that may be defined there. If we like to define our own
 " autocommands, place the definitions *after* this.
@@ -146,7 +149,7 @@ set bg=light
 " The settings below match nicely with these ~/.Xdefaults-<hostname>:
 "   xterm*background: gray15
 "   xterm*foreground: gray80
-if &term == s:my_xterm
+if s:my_xterm_bg == "dark"
     hi Comment ctermfg=35
     hi Constant ctermfg=brown
     hi Statement ctermfg=lightgreen

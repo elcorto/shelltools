@@ -34,6 +34,7 @@ options:
 examples:
 ---------
 $ $prog -Fa -f hostfile -- "cd /usr/local/lib && ls -l; w; hostname"
+$ $prog -Fa -f hostfile -- "./strange_commad.sh 2>&1" > errors_from_hosts.log
 $ echo -e "quad1\nquad2" > hostfile && $prog -f hostfile 'rm -r /scratch/foo/*'
 $ cat script.sh | $prog -Fa -f hostfile
 
