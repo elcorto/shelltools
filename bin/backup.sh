@@ -7,20 +7,29 @@ simulate=false
 prefix='.'
 delete=false
 incr=true
+copy_links=false
+
 usage(){
     cat <<EOF
 Backup (copy) <src> (file, dir, symlink) to <src><prefix><num>, where <num> is
 an integer starting at 0 which is incremented until there is no destination
-with that name. For symlinks, the link target is copied, with -d, the symlink
-(not the target) is deleted:
+with that name. 
+
+For example foo.0 is the oldest one (first backup) and e.g. foo.7 the newest.
+Thus, the numbering is the inverse of what is found in logrotate.
+
+Symlinks: Without -P, the link target is copied, with -d, the symlink (not the
+target) is deleted. With -P, the link is copied (like cp -d).
 
     file/dir    symlink
     cp          cp -L       (copy target)
 -d  mv          cp -L && rm (copy target && remove link)  
+-P  cp          cp -d       (copy link)  
+-dP mv          cp -d && rm (copy link && remove link)  
 
 usage:
 ------
-$prog [-hsdn] [-p <prefix>] files... dirs...
+$prog [-hsdnP] [-p <prefix>] files... dirs...
 
 options:
 --------
@@ -28,12 +37,11 @@ options:
 -p : prefix, default: '$prefix'
 -d : delete <src> after backup
 -n : no number, copy only to <src><prefix>
+-P : copy links as links (like cp -d)
 EOF
 }
 
-# optimization: in case of file/dir and -d, use mv instead of cp && rm,
-# must check type of $src for that
-cmdline=$(getopt -o hnsdp: -n $prog -- "$@")
+cmdline=$(getopt -o hnsdPp: -n $prog -- "$@")
 eval set -- "$cmdline"
 while [ $# -gt 0 ]; do
     case $1 in
@@ -49,6 +57,9 @@ while [ $# -gt 0 ]; do
         -p)
             prefix=$2
             shift
+            ;;
+        -P)
+            copy_links=true
             ;;
         -h)
             usage
@@ -81,12 +92,16 @@ for src in $src_lst; do
     fi        
     # sanity check
     if ! [ -f $dst -o -d $dst -o -L $dst ]; then
-        cmd="cp -rvL $src $dst"
+        if $copy_links; then
+            cmd="cp -rvd $src $dst"
+        else
+            cmd="cp -rvL $src $dst"
+        fi            
         if $delete; then 
             if [ -L $src ]; then
                 cmd="$cmd && rm -rv $src"
             else
-                cmd="mv $src $dst"
+                cmd="mv -v $src $dst"
             fi                
         fi
         $simulate && echo $cmd || eval $cmd
