@@ -8,13 +8,15 @@ usage(){
 
 Execute a command on all hosts in \$hostfile. The hostfile lists all hosts (one
 per line). Comments starting with "#" are allowed.
-    quad1
-    quad2
+    host1
+    host2
     ...
 
 usage:
 ------
-$prog [<options>] [-f <hostfile>] [--] [<command>]
+$prog [<options>] [-f <hostfile>] [--] <command>
+echo <command> | $prog ...
+cat <script> | $prog ...
 
 args:
 -----
@@ -29,13 +31,13 @@ options:
     [default: $hostfile]
 -o : options to ssh (e.g. -o '-o StrictHostKeyChecking=yes'), use proper quoting
 -F : fork (use "ssh ... &")
--a : annotate (prepend output from each node with it's hostname)
+-a : annotate (prepend output from each host with it's hostname)
 
 examples:
 ---------
 $ $prog -Fa -f hostfile -- "cd /usr/local/lib && ls -l; w; hostname"
 $ $prog -Fa -f hostfile -- "./strange_commad.sh 2>&1" > errors_from_hosts.log
-$ echo -e "quad1\nquad2" > hostfile && $prog -f hostfile 'rm -r /scratch/foo/*'
+$ echo -e "host1\nhost2" > hostfile && $prog -f hostfile 'rm -r /scratch/foo/*'
 $ cat script.sh | $prog -Fa -f hostfile
 
 notes:
@@ -55,7 +57,6 @@ annotate=false
 
 cmdline=$(getopt -o d:vcsFaf:ho: -- "$@")
 eval set -- "$cmdline"
-##echo ">>$cmdline<<"
 while [ $# -gt 0 ]; do
     case "$1" in 
         -v)
