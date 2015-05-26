@@ -70,7 +70,7 @@ fi
 # skip first row b/c that's the "header"
 sed -n -e 's/"//g' -e '2,$p' $csv > $tmp
 
-header_raw=$(head -n1 $csv | tr ',' ' ')
+header_raw=$(head -n1 $csv | sed 's/,/ /g; s/"//g')
 header=''
 keys=""
 for entry in $header_raw; do
