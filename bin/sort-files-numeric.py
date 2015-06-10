@@ -62,5 +62,6 @@ for idx in range(len(matches)):
         fmt = '{}{}{}'
     old = '{}{}{}'.format(first[idx], nums_str[idx], last[idx])
     new = fmt.format(first[idx], new_num, last[idx])
-    print("mv {} {}".format(old,new))
+    if old != new:
+        print("mv {} {}".format(old,new))
     
