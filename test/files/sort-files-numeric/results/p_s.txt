@@ -1,0 +1,6 @@
+mv 1a 10a
+mv 2b 20b
+mv 7h8 30h8
+mv 9i10 40i10
+mv 11j12k13 50j12k13
+mv 14l15m16 60l15m16

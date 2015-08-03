@@ -1,0 +1,6 @@
+mv c3 c10
+mv d4 d20
+mv 7h8 7h30
+mv 9i10 9i40
+mv 11j12k13 11j12k50
+mv 14l15m16 14l15m60
