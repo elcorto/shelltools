@@ -1,0 +1,6 @@
+mv 1a 10a
+mv 2b 20b
+mv c3 c30
+mv d4 d40
+mv e5f e50f
+mv f6g f60g
