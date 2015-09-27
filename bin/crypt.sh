@@ -20,6 +20,8 @@ options:
 -s : simulate
 -e : encrypt, if not used then default is to decrypt (like gpg and gpg -e),
     if the env var \$GPGKEY is set, we use "gpg -r \$GPGKEY -e ..."
+-r : like "gpg -r": provide recipient (key ID, email, ...), overrides \$GPGKEY
+     if present with -e
 
 examples:
 ---------
@@ -84,7 +86,8 @@ crypt=false
 simulate=false
 delete_all_src=false
 delete_tmp=false
-cmdline=$(getopt -o dsceh -l delete-all-src -n $prog -- "$@")
+recipient=
+cmdline=$(getopt -o dscer:h -l delete-all-src -n $prog -- "$@")
 eval set -- "$cmdline"
 while [ $# -gt 0 ]; do
     case $1 in
@@ -99,6 +102,10 @@ while [ $# -gt 0 ]; do
             ;;
         -e)
             crypt=true
+            ;;
+        -r)
+            recipient=$2
+            shift
             ;;
         -h)
             usage
@@ -130,7 +137,11 @@ encrypt(){
     local to_process=$1
     echo "gpg -e $to_process ..."
     local extra=
-    [ -n "$GPGKEY" ] && extra="-r $GPGKEY"
+    if [ -n "$recipient" ]; then
+        extra="-r $recipient"
+    elif [ -n "$GPGKEY" ]; then
+        extra="-r $GPGKEY"
+    fi     
     execute "gpg $extra -e $to_process"
 }
 
