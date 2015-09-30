@@ -1,13 +1,14 @@
 #!/bin/sh
 
 rungit(){
-    $gitcmd $@ 2>&1 | sed 's/^/    /g'     
+    $gitcmd $@ 2>&1 | sed 's/^\s*/    /g'     
 }
 
 gogo(){
     local dr=$1
     gitcmd="git -C $dr"
     echo "repo: $dr"
+    rungit "status --porcelain"
     remotes=$($gitcmd remote)
     local_br=$($gitcmd branch -av | grep -v remotes \
         | sed -re 's/^(\s|\*)*//g'  | mawk '{print $1}')
