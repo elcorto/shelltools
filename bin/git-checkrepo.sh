@@ -52,7 +52,7 @@ gogo(){
     fi
     
     echo "${ws}branches sync status:"        
-    rungit branch -vva | grep -E 'ahead|behind' | mark | indent 2
+    rungit branch -vva | grep -E 'ahead|behind' | tr -s ' ' | mark | indent 2
     
     echo "${ws}local branches:"        
     # master
