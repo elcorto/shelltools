@@ -62,12 +62,19 @@ for line in sys.stdin:
     else:
         txt += line
 
+# deal with pandoc utf8 encoding hickups
 repl = {r'&lt;': '<',
         r'&gt;': '>',
         r'&quot;': '"',
         r'<tt>': '@',
         r'</tt>': '@',
+        r'&#64;': '@',
         r'&#95;': ' ',
+        r'&#45;': '-',
+        r'&#43;': '+',
+        r'&#42;': '*',
+        r'"$":': '',
+        r'&amp;': '&',
         }
 
 for key,val in repl.iteritems():
