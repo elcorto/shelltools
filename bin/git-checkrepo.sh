@@ -36,6 +36,11 @@ mark(){
 
 gogo(){
     local dr=$1
+    [ -d $dr/.git ] && _gogo $dr || echo "skip: $dr"
+}    
+
+_gogo(){
+    local dr=$1
     gitcmd="git -C $dr"
     remotes=$($gitcmd remote)
     
