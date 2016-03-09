@@ -76,7 +76,7 @@ _gogo(){
         | grep -v HEAD | sort -u)
     for lb in $local_br; do
         if ! echo "$remote_br_full" | grep -q $lb; then
-            echo "local-only branch: $lb" | mark | indent 3
+            echo "local-only branch: $lb" | mark | indent 2
         fi    
     done
     
@@ -93,9 +93,10 @@ _gogo(){
         remote_br_rr=$($gitcmd branch -rv | mawk "/^[ ]+$rr/ {print \$1}" \
             | sed -re "s|$rr/||g" | grep -v HEAD | sort -u)
         for rb in $remote_br_rr; do 
-            echo "branch: $rb" | indent 3
-            if ! echo "$local_br" | grep -q $rb; then
-                echo "new remote branch: $rr/$rb" | mark | indent 4
+            if echo "$local_br" | grep -q $rb; then
+                echo "branch: $rb" | indent 3
+            else
+                echo "new branch: $rb" | mark | indent 3
             fi    
         done
     done
