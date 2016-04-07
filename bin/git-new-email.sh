@@ -70,13 +70,14 @@ while [ $# -gt 0 ]; do
     shift
 done
 
+bak=.git/refs/original
+if [ -d $bak ]; then
+    dr=$(mktemp -d --tmpdir=/tmp $prog-XXXXXXX)
+    mv $bak $dr/
+    echo "==> moved $bak to $dr"
+fi
+
 if $list; then
-    bak=.git/refs/original
-    if [ -d $bak ]; then
-        dr=$(mktemp -d --tmpdir=/tmp $prog-XXXXXXX)
-        mv $bak $dr/
-        echo "==> moved $bak to $dr"
-    fi
     git log --all --format=format:"author:    %an %ae%ncommitter: %cn %ce" | sort -u
     exit 0
 fi
