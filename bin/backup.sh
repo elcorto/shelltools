@@ -93,9 +93,9 @@ for src in $src_lst; do
     # sanity check
     if ! [ -f $dst -o -d $dst -o -L $dst ]; then
         if $copy_links; then
-            cmd="cp -rvd $src $dst"
+            cmd="cp --preserve=all -rvd $src $dst"
         else
-            cmd="cp -rvL $src $dst"
+            cmd="cp --preserve=all -rvL $src $dst"
         fi            
         if $delete; then 
             if [ -L $src ]; then
