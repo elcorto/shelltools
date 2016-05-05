@@ -1,51 +1,66 @@
 #!/bin/sh
 
+set -e
+
 prog=$(basename $0)
+
+err(){
+    echo "$prog: error: $@"
+    exit 1
+}    
 
 usage(){
     cat << eof
-Change git author/committer name/email. 
-
-option      value changes                            
--e          GIT_AUTHOR_EMAIL        
--n          GIT_AUTHOR_NAME
--c -e       GIT_COMMITTER_EMAIL
--c -n       GIT_COMMITTER_NAME
-
-Test if it worked with "$prog -l" afterwards. 
-
-If you get a "WARNING: Ref 'refs/heads/master' is unchanged", then nothing
-needed to be changed.
+Rewrite git history to change author/committer's name/email. Or change
+user.name/user.email in $conf .
 
 usage
 -----
-$prog -l | [-c] [-e | -n] <oldval> <newval>
+First, make a backup of the repo. Now. Then:
 
-arguments
----------
-oldval, newval : old/new email (-e) or name (-n), use proper quoting
+List author/committer.
+    
+    $prog -l
+
+Change git author (-a) / committer (-c) name (-n) / email (-e) -- i.e. rewrite
+history! If you get a "WARNING: Ref 'refs/heads/master' is unchanged", then
+nothing needed to be changed.
+
+    $prog -ae  <oldmail> <newmail>  # GIT_AUTHOR_EMAIL
+    $prog -ce  <oldmail> <newmail>  # GIT_COMMITTER_EMAIL
+    $prog -ace <oldmail> <newmail>  # both
+
+    $prog -an  <oldname> <newname>  # GIT_AUTHOR_NAME
+    $prog -cn  <oldname> <newname>  # GIT_COMMITTER_NAME
+    $prog -acn <oldname> <newname>  # both
+
+Change .git/config (-C): set user.name (-n) / user.email (-e) 
+    
+    $prog -Ce <newmail>
+    $prog -Cn <newname>
 
 options
 -------
--l : only list available authors and emails
--c : set GIT_COMMITTER_{NAME,EMAIL} as well
+-l : list available authors and emails
+-a : author mode
+-c : committer mode
+-e : change email 
+-n : change name
+-C : change .git/config instead of rewriting history (-a / -c)
 
 examples
 --------
-List.
-    $prog -l
+Change author mail only.
+    $prog -ae old@mail.com new@mail.com
 
-Author mail.
-    $prog -e old@mail.com new@mail.com
+Change committer mail where there is none.
+    $prog -ce '' new@mail.com
 
-Author and committer mail.
-    $prog -c -e old@mail.com new@mail.com
+Change author and committer name.
+    $prog -acn john 'John Doe'
 
-Set author mail where there is none.
-    $prog -e '' new@mail.com
-
-Set new author and committer name.
-    $prog -c -n john 'John Doe'
+Set new user.name in .git/config .
+    $prog -Cn 'John Doe'
 
 notes
 -----
@@ -62,36 +77,48 @@ You may want to do this after hg-fast-export, such as
 Alternatively, use a better user mapping file in the first place :) Note that
 hg-fast-export sets author and committer to the same identity.
 
-Note that "git filter-branch" creates a backup .git/refs/original/ and "git log
---all" takes that backup dir into account. So we move that dir away to a tmp
-dir (a message is printed in that case).
+We use "git filter-branch" to rewrite history. Note that this command creates a
+backup .git/refs/original/ and "git log --all" takes that backup dir into
+account. We move that dir away to a tmp dir (a message is printed in that case)
+when using "-l". This can be also used to clean up the repo after history
+rewriting. Don't forget to "git push origin --all --force" later in order to
+make your users unhappy (hint: history rewriting is usually frowned upon :)
 eof
 }
 
 
 list=false
-committer=false
-cmdline=$(getopt -o hlcen -n $prog -- "$@")
+mode_committer=false
+mode_author=false
+mode_conf=false
+cmdline=$(getopt -o hlacenC -n $prog -- "$@")
 oldmail=
 newmail=
 oldname=
 newname=
 mode_mail=false
 mode_name=false
+conf=.git/config
 eval set -- "$cmdline"
 while [ $# -gt 0 ]; do
     case $1 in
         -l)
             list=true
             ;;
+        -a)
+            mode_author=true
+            ;;
         -c)
-            committer=true
+            mode_committer=true
             ;;
         -e)
             mode_mail=true
             ;;
         -n)
             mode_name=true
+            ;;
+        -C)
+            mode_conf=true
             ;;
         -h)
             usage
@@ -122,14 +149,34 @@ if $list; then
 fi
 
 if [ $# -eq 0 ]; then
-    usage
-    exit 1
+    err "use one of -a,-c,-C plus arguments"
 fi    
 
-oldval=$1
-newval=$2
+($mode_author || $mode_committer || $mode_conf) \
+    || err "unknown mode, expect author (-a), committer (-c) or conf (-C)"
 
-cmd="
+if $mode_conf; then
+    newval="$1"
+    [ $# -eq 1 ] || err "expecting one arg"
+    [ -f $conf ] || err "$conf not found"
+    crudini --help > /dev/null 2>&1 || err "crudini not found"
+    # remove trailing whitespace to make crudini happy
+    sed -i -re 's/^\s*(.*)$/\1/g' $conf
+    if $mode_name; then
+        crudini --set $conf user name "$newval"
+    elif $mode_mail; then
+        crudini --set $conf user email "$newval"
+    else
+        err "unknown mode, expect name or mail"
+    fi        
+else
+    [ $# -eq 2 ] || err "expecting two args"
+    ( $mode_author || $mode_committer ) \
+        || err "unknown mode, expect author (-a) or committer (-c)"
+    oldval="$1"
+    newval="$2"
+    if $mode_author; then
+        cmd="
 if $mode_mail; then
     if [ \"\$GIT_AUTHOR_EMAIL\" = \"$oldval\" ]; then
         export GIT_AUTHOR_EMAIL=\"$newval\"
@@ -140,9 +187,9 @@ elif $mode_name; then
     fi
 fi
 "
-
-if $committer; then
-    cmd="$cmd
+    fi
+    if $mode_committer; then
+        cmd="$cmd
 if $mode_mail; then
     if [ \"\$GIT_COMMITTER_EMAIL\" = \"$oldval\" ]; then
         export GIT_COMMITTER_EMAIL=\"$newval\"
@@ -153,7 +200,8 @@ elif $mode_name; then
     fi
 fi
 "
-fi
+    fi
 
-# https://help.github.com/articles/changing-author-info/
-git filter-branch --env-filter "$cmd" --tag-name-filter cat -- --all
+    # https://help.github.com/articles/changing-author-info/
+    git filter-branch --env-filter "$cmd" --tag-name-filter cat -- --all
+fi    
