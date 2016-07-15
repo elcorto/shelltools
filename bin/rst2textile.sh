@@ -2,6 +2,8 @@
 
 if echo "$@" | grep -qEe '-h|--help'; then
     cat << EOF
+Convert rst to Redmine-style textile markup.
+
 usage:
     $(basename $0) file.rst
 EOF

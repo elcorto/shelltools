@@ -101,7 +101,7 @@ import sys, argparse
 from subprocess import Popen, PIPE
 from argparse import RawTextHelpFormatter
 
-desc = "Fix pandoc (rst to) textile markup conversion for redmine."
+desc = "Fix pandoc textile markup conversion for Redmine."
 usage = "pandoc -f <format> -t textile <file> | %(prog)s"
 
 parser = argparse.ArgumentParser(description=desc, usage=usage,
