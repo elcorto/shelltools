@@ -129,7 +129,10 @@ for line in sys.stdin:
     elif inblock_html:
         if not line.startswith('<'):
             inblock_html = False
-            pp = Popen('pandoc -f html -t markdown_strict | pandoc -f markdown_strict -t textile', 
+            pp = Popen(r"pandoc -f html -t markdown_strict \
+                            | sed -re 's/\\_/XXXunderscoreXXX/g' \
+                            | pandoc -f markdown_strict -t textile \
+                            | sed -re 's/XXXunderscoreXXX/_/g'", 
                        stdin=PIPE, stdout=PIPE, stderr=PIPE, shell=True)
             stdout = pp.communicate(html)[0]
             txt += stdout
