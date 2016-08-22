@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 #------------------------------------------------------------------------------
 # XVIM -- a better gvim using xterm
@@ -177,40 +177,20 @@ dbg_msg "using TERM=$TERM"
 vim_opts=$vim_opts" -T $TERM"
 dbg_msg "\$vim_opts: $vim_opts"
 
-_pwd=$(pwd)
-title_base="xvim: [$USER@$(hostname) ${_pwd/$HOME/~}]" # bashism?
+title_base="xvim: [$USER@$(hostname) $(pwd | sed -re "#$HOME#~#")]"
 if $read_from_stdin; then
-    # Emulate stuff like `cat <some_file> | vim -`.
-    #
-    # Read stdin line by line, pipe into temp file, feed this into vim via
-    # `cat`.
-    # While loop inspired by
-    # http://linuxreviews.org/beginner/abs-guide/en/c5709.html#READREDIR.
-    #
-    # Default field seperators
-    # (http://www.math.utah.edu/docs/info/features_1.html), which are used to
-    # split read lines by `read` into words are (set | grep IFS): IFS=$' \t\n':
-    # whitespace, tab, newline. B/c of the whitespaces, leading whitespaces in
-    # a stdin input line are filtered out by `read`.  "    lala" becomes
-    # "lala". `IFS=""` solves this. `read line` reads one line (string) which
-    # is put in the variable $line. 
-    #
-    # Even nicer: use the `line` command.
-
-    # Create a tmp file in /tmp/.
     tmpf=$(mktemp)
     msg "filling tmp file, wait ..."
-##    while IFS="" read line; do
-    while line=$(line); do
+    while IFS="" read line; do
         # Must use `"$line"' instead of `$line' to display all whitespaces
         # properly.
-        echo -e "$line" >> $tmpf
+        echo "$line" >> $tmpf
     done
     msg "... done"
     if $man_mode; then
         xterm -T "$title_base stdin" -e "cat $tmpf | col -bx | vim $vim_opts -"
     else
-        xterm -T "$title_base stdin" -e "cat $tmpf | vim $vim_opts -c 'set nomod' -"
+        xterm -T "$title_base stdin" -e "vim $vim_opts -c 'set nomod' $tmpf"
     fi        
     # After closing the xterm, delete the tmp file.
     rm $tmpf
