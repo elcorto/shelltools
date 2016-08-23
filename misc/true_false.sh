@@ -1,65 +1,60 @@
-# The final and definitive way to handle bool stuff in bash (and other shells
-# with builtins "true" and "false").
-
-# Using command chains, each "command" evaluates to 0 (true) or != 0 (false).
-# The shell builtins true/false evaluate to 0/1.
+# The final and definitive way to handle bool stuff in POSIX shell [1]. Using
+# command chains such as [...] && [...], each [...] (or test ...) evaluates to
+# 0 (true) or != 0 (false). The shell builtins true/false evaluate to 0/1 (as
+# in a=true). 
 #
-# Equivalent constructs can be built with []. In bash, "==" is the same as "=",
-# but the latter is POSIX compliant. For instance, this also works in dash.
-# Surprisingly, "=" ("==") works althouth it is a string comparision operator.
-
-# All statements below should be valid POSIX. Try running this script with
-# dash. With recent Debians: /bin/sh -> dash, so "sh <this script>".
-
+# [1] http://pubs.opengroup.org/onlinepubs/9699919799/xrat/V4_xcu_chap02.html
 
 exe(){
-    local cmd="$1"
-    local msg="$2"
-    [ -n "$msg" ] && echo "# python: $msg"
-    echo "$cmd"
-    eval $cmd
-    echo "  "
+    cmd="if $1; then echo 'true'; else echo 'false'; fi"
+    echo "${1}: $(eval $cmd) $2"
 }
 
-cat << eof
-For the following examples where \$x and \$y are shell bool values (true/false)
-there are two variants in sh. Explicit if statement:
-    if \$x <operator> \$y; then ... fi
-or a shorter version using logical operators:
-   (\$x <operator> \$y) && ...
+echo ""
+echo "always use one of these:"
+echo ""
 
-Below, we use the if .. then version, which may be more familiar. We print the
-shell expresion and the corresponding Python statements.
+exe '[ 1 -eq 1 -a 1 -eq 1 ]'
+exe '[ 1 -eq 1 -a 1 -eq 2 ]'
+exe '[ 1 -eq 2 -a 1 -eq 2 ]'
 
-eof
+exe '[ 1 -eq 1 -o 1 -eq 1 ]'
+exe '[ 1 -eq 1 -o 1 -eq 2 ]'
+exe '[ 1 -eq 2 -o 1 -eq 2 ]'
 
-exe "x=true; y=true"
-exe "if $x && $y; then echo 0; fi"      "if x and y"
-exe "if $x || $y; then echo 0; fi"      "if x or y"
-exe "x=true; y=false"
-exe "if $x && $y; then echo 0; fi"      "if x and y"
-exe "if $x || $y; then echo 0; fi"      "if x or y"
-exe "if $x && ! $y; then echo 0; fi"    "if x and not y"
+exe '[ \( 1 -eq 1 \) -a \( 1 -eq 1 \) ]'
+exe '[ \( 1 -eq 1 \) -a \( 1 -eq 2 \) ]'
+exe '[ \( 1 -eq 2 \) -a \( 1 -eq 2 \) ]'
+                                      
+exe '[ \( 1 -eq 1 \) -o \( 1 -eq 1 \) ]'
+exe '[ \( 1 -eq 1 \) -o \( 1 -eq 2 \) ]'
+exe '[ \( 1 -eq 2 \) -o \( 1 -eq 2 \) ]'
 
-echo "Now, use test or [..]
+exe '[ 1 -eq 1 ] && [ 1 -eq 1 ]'
+exe '[ 1 -eq 1 ] && [ 1 -eq 2 ]'
+exe '[ 1 -eq 2 ] && [ 1 -eq 2 ]'
 
-"
+exe '[ 1 -eq 1 ] || [ 1 -eq 1 ]'
+exe '[ 1 -eq 1 ] || [ 1 -eq 2 ]'
+exe '[ 1 -eq 2 ] || [ 1 -eq 2 ]'
 
-exe "x=true; y=true"
-exe "[ $x = true -a $y = true ] && echo 0"  "if (x is True) and (y is True)"
-exe "[ $x = true -o $y = true ] && echo 0"  "if (x is True) or (y is True)"
-exe "x=true; y=false"
-exe "[ $x = true -a $y = true ] && echo 0"   "if (x is True) and (y is True)" 
-exe "[ $x = true -o $y = true ] && echo 0"   "if (x is True) or (y is True)"
-exe "[ $x = true -a ! $y = true ] && echo 0"  "if (x is True) or not (y is True)"
+echo ""
+echo "sanity check:"
+echo ""
 
-cat << eof
-The examples below are WRONG. "true" and "false" and not bool expressions to be
-evaluated by "test" or []. They are the *result* of it. Use && or || instead --
-see above.
+exe '[ 1 -eq 1 -a 2 -eq 1 ]'
+exe '[ 2 -eq 1 -a 1 -eq 2 ]'
+exe '[ 2 -eq 1 -a 2 -eq 1 ]'
 
-eof
+exe '[ 1 -eq 1 -o 2 -eq 1 ]'
+exe '[ 2 -eq 1 -o 1 -eq 2 ]'
+exe '[ 2 -eq 1 -o 2 -eq 1 ]'
 
-exe "x=false; y=false"
-exe "[ $x -o $y ] && echo 0"
-exe "[ $x -a $y ] && echo 0"
+echo ""
+echo "true/false builtin subtleties:"
+echo ""
+exe '[ 1 -eq 2 ] || [ 1 -eq 2 ]' "# ok, valid"
+exe 'false || false' "# ok, same as above"
+exe '[ 1 -eq 2 -o 1 -eq 2 ]' "# ok, same as above"
+exe '[ false -o false ]' "# NOT the same; this is equal to [ 0 -o 0 ], [ 1 -o 1 ], ..."
+
