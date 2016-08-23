@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 #------------------------------------------------------------------------------
 # XVIM -- a better gvim using xterm
@@ -160,12 +160,12 @@ if [ -f $HOME/.vimrc ]; then
 fi
 # One of these files must define TERM.
 bashrc_env_lst="$HOME/.profile $HOME/.bashrc $HOME/.bashrc_profile"
-if [ "$TERM" = "dumb" ]; then
+if [ "$TERM" = "dumb" -o -z "$TERM" ]; then
     for bashrc_env in $bashrc_env_lst; do
-        dbg_msg "TERM=dumb, trying $bashrc_env ..."
+        dbg_msg "TERM='$TERM', trying $bashrc_env ..."
         if [ -f $bashrc_env ]; then
             . $bashrc_env
-            if [ "$TERM" != "dumb" ]; then 
+            if [ "$TERM" != "dumb" -a -n "$TERM" ]; then 
                 dbg_msg '... ok' 
                 break
             fi                
