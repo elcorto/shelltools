@@ -5,6 +5,7 @@ set -e
 prog=$(basename $0)
 tablename="table_csv2sqlite"
 null=false
+trim=false
 usage(){
     cat <<EOF
 Convert .csv file to sqlite database. The .csv has to have a special first
@@ -17,7 +18,7 @@ column name and sqlite type (TEXT, REAL, ...):
 
 usage
 -----
-$prog [-h] [-n] [-t <tablename>] <csv> [<sql>]
+$prog [-hnw] [-t <tablename>] <csv> [<sql>]
 
 args
 ----
@@ -28,10 +29,11 @@ options
 -------
 -t : sqlite database table name, default: "$tablename"
 -n : set empty fields ",," to NULL instead of an empty string
+-w : trim leading and trailing whitespace (' foo  , bar '-> 'foo,bar')
 EOF
 }
 
-cmdline=$(getopt -o hnt: -n $prog -- "$@")
+cmdline=$(getopt -o hnwt: -n $prog -- "$@")
 eval set -- "$cmdline"
 while [ $# -gt 0 ]; do
     case $1 in
@@ -41,6 +43,9 @@ while [ $# -gt 0 ]; do
             ;;
         -n)
             null=true
+            ;;
+        -w)
+            trim=true
             ;;
         -h)
             usage
@@ -67,8 +72,12 @@ else
 fi
 [ -f $sql ] && echo "file exists: $sql" && exit 1
 [ "$sql" == "$csv" ] && echo "error: file names are the same: $csv, $sql" && exit 1
-# skip first row b/c that's the "header"
-sed -n -e 's/"//g' -e '2,$p' $csv > $tmp
+# skip first row b/c that's the "header", delete leading and trailing
+# whitespace around entries
+sed -nre 's/"//g; 2,$p' $csv > $tmp
+if $trim; then
+    sed -i -re 's/^\s*//g; s/\s*$//g; s/\s*,\s*/,/g' $tmp
+fi
 
 header_raw=$(head -n1 $csv | sed 's/,/ /g; s/"//g')
 header=''
