@@ -1,34 +1,8 @@
 #!/usr/bin/python
 
 """
-Example rst file for conversion (pandoc -f rst ...)
-----------------------------------------------------
-one line::
-
-    1 2 3 4
-
-two lines::
-
-    1 2 3 4
-    5 6 7 8
-
-two lines with blank::
-
-    1 2 3 4
-
-    5 6 7 8
-
-``inline literal``
-
-[[wiki link must be unchanged]]
-
-* this is a 
-* nested
-    * bullet
-    * list
-
-.. this is a comment and will be ignored
-----------------------------------------------------
+Example rst file for conversion (pandoc -f rst ...): See
+test/files/rst2textile/input.rst 
 
 Stuff we fix
 ============
@@ -60,6 +34,7 @@ right:
 
 html
 ----
+
 All html stuff starts with "<.." on every line. This is good for parsing, i.e.
 we don't have to fix things like
 
@@ -101,7 +76,7 @@ import sys, argparse
 from subprocess import Popen, PIPE
 from argparse import RawTextHelpFormatter
 
-desc = "Fix pandoc textile markup conversion for Redmine."
+desc = "Convert pandoc's textile to Redmine-flavored textile."
 usage = "pandoc -f <format> -t textile <file> | %(prog)s"
 
 parser = argparse.ArgumentParser(description=desc, usage=usage,
@@ -129,6 +104,8 @@ for line in sys.stdin:
     elif inblock_html:
         if not line.startswith('<'):
             inblock_html = False
+            # Yes this is a hack. Used to make underscores survive html ->
+            # textile conversion. Patches welcome!
             pp = Popen(r"pandoc -f html -t markdown_strict \
                             | sed -re 's/\\_/XXXunderscoreXXX/g' \
                             | pandoc -f markdown_strict -t textile \
@@ -149,7 +126,7 @@ repl = {r'&lt;': '<',
         r'<tt>': '@',
         r'</tt>': '@',
         r'&#64;': '@',
-        r'&#95;': ' ',
+        r'&#95;': '_',
         r'&#45;': '-',
         r'&#43;': '+',
         r'&#42;': '*',
