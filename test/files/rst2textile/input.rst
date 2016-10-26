@@ -5,6 +5,9 @@ heading2
 --------
 
 text_with_underscores
+text-with-dashes
+
+foo@email.com
 
 one line::
 
