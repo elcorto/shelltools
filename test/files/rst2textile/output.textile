@@ -1,10 +1,10 @@
-h1(#heading1). heading1
+h1. heading1
 
-h2(#heading2). heading2
+h2. heading2
 
 text_with_underscores text-with-dashes
 
-foo@email.com
+"foo@email.com":mailto:foo@email.com
 
 one line:
 

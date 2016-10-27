@@ -10,4 +10,6 @@ EOF
     exit 0
 fi
 
-pandoc -f rst -t textile $1 | pandoc-fix-textile.py
+pandoc -f rst -t markdown_strict $1 \
+    | pandoc -f markdown_strict -t textile \
+    | pandoc-fix-textile.py
