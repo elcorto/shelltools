@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python2
 
 # This script filters files matching some time spec out of a list of files. One
 # could use "find -mtime ..." but find(1) is really slow when searching a dir

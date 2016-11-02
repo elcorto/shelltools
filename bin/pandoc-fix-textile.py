@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python2
 
 """
 Example rst file for conversion (pandoc -f rst ...): See

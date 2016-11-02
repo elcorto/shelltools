@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python2
 
 # Use inside a hg repo to plot a gragh showing the number of changesets vs.
 # tags.
