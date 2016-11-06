@@ -9,7 +9,9 @@ set -e
 ws="  "
 
 rungit(){
-    $gitcmd $@ 2>&1
+    # grep: deal with ssh complainig about its connection sharing sockets when
+    # forking (-F)
+    $gitcmd $@ 2>&1 | grep -v 'ControlSocket.*already exists, disabling multiplexing'
 }
 
 err(){
@@ -121,16 +123,21 @@ Default is the current dir.
 options
 -------
 -f / --fetch : run "git fetch <remote>" at first
+-F : fork
 eof
 }
 
 fetch=false
-cmdline=$(getopt -o hrf -l new,fetch -n $prog -- "$@")
+fork=false
+cmdline=$(getopt -o hrfF -l new,fetch -n $prog -- "$@")
 eval set -- "$cmdline"
 while [ $# -gt 0 ]; do
     case $1 in
         -f | --fetch)
             fetch=true
+            ;;
+        -F)
+            fork=true
             ;;
         -h)
             usage
@@ -152,7 +159,13 @@ if [ $# -eq 0 ]; then
     gogo .
 else    
     for dr in $@; do
-        gogo $dr
-        echo ""
+        if $fork; then
+            (txt=$(gogo $dr); 
+             echo "$txt";
+             echo "") &
+        else
+            gogo $dr
+            echo ""
+        fi    
     done
-fi    
+fi 
