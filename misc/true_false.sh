@@ -39,6 +39,17 @@ exe '[ 1 -eq 1 ] || [ 1 -eq 2 ]'
 exe '[ 1 -eq 2 ] || [ 1 -eq 2 ]'
 
 echo ""
+echo "using builtins true/false:"
+echo ""
+
+exe 'true && true'
+exe 'true && false'
+exe 'false && false'
+exe 'true || true'
+exe 'true || false'
+exe 'false || false'
+
+echo ""
 echo "sanity check:"
 echo ""
 
@@ -54,7 +65,6 @@ echo ""
 echo "true/false builtin subtleties:"
 echo ""
 exe '[ 1 -eq 2 ] || [ 1 -eq 2 ]' "# ok, valid"
-exe 'false || false' "# ok, same as above"
-exe '[ 1 -eq 2 -o 1 -eq 2 ]' "# ok, same as above"
-exe '[ false -o false ]' "# NOT the same; this is equal to [ 0 -o 0 ], [ 1 -o 1 ], ..."
-
+exe 'false || false' "            # ok, same as above"
+exe '[ 1 -eq 2 -o 1 -eq 2 ]' "    # ok, same as above"
+exe '[ false -o false ]' "        # NOT the same; this is equal to [ 0 -o 0 ], [ 1 -o 1 ], ..."
