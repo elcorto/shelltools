@@ -77,7 +77,7 @@ for line in sys.stdin:
     else:
         txt += line
 
-# deal with pandoc utf8 encoding hickups
+# deal with pandoc utf8 encoding (and other) hickups
 repl = {r'&lt;': '<',
         r'&gt;': '>',
         r'&quot;': '"',
@@ -91,6 +91,7 @@ repl = {r'&lt;': '<',
         r'&#124;': '|',
         r'"$":': '',
         r'&amp;': '&',
+        r'<!-- -->': '',
         }
 
 for key,val in repl.iteritems():
