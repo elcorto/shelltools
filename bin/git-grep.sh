@@ -6,4 +6,4 @@
 # 
 # (hopefully).   
 
-git rev-list --all | xargs git grep $@ 
+git rev-list --all | xargs git grep "$@"
