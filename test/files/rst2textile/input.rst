@@ -37,3 +37,16 @@ two lines with blank::
 .. this is a comment and will be ignored
 
 #ticket  
+
+======= ======  ===========
+aa      bb      cc
+======= ======  ===========
+xxxxxxx yyyyyy  zzzzzzzzzzz
+11      22      33
+======= ======  ===========
+
+======= ======  ===========
+aa      bb      cc
+xxxxxxx yyyyyy  zzzzzzzzzzz
+11      22      33
+======= ======  ===========
