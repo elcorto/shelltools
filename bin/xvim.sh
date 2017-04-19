@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 #------------------------------------------------------------------------------
 # XVIM -- a better gvim using xterm
@@ -153,18 +153,20 @@ else
     vim_opts=""
 fi    
 
-# If called from some Gnome app, we have funny env settings. TERM is "dumb" and
-# .vimrc doesn't seem to get sourced.
+# If called from some GUI app, we have funny env settings. TERM is "dumb" and
+# .vimrc doesn't seem to get sourced. Avoid calling shell-specific scripts here
+# since we run sh (POSIX), so configure your profile scripts such that TERM is
+# defined in a general-purpose file.
 if [ -f $HOME/.vimrc ]; then
     vim_opts=$vim_opts" -u $HOME/.vimrc"
 fi
 # One of these files must define TERM.
-bashrc_env_lst="$HOME/.profile $HOME/.bashrc $HOME/.bashrc_profile"
+profile_lst="$HOME/.profile_common $HOME/.profile"
 if [ "$TERM" = "dumb" -o -z "$TERM" ]; then
-    for bashrc_env in $bashrc_env_lst; do
-        dbg_msg "TERM='$TERM', trying $bashrc_env ..."
-        if [ -f $bashrc_env ]; then
-            . $bashrc_env
+    for profile in $profile_lst; do
+        dbg_msg "TERM='$TERM', trying $profile ..."
+        if [ -f $profile ]; then
+            . $profile
             if [ "$TERM" != "dumb" -a -n "$TERM" ]; then 
                 dbg_msg '... ok' 
                 break
