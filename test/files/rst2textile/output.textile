@@ -39,4 +39,12 @@ two lines with blank:
 
 #ticket
 
+|_. aa|_. bb|_. cc|
+|xxxxxxx|yyyyyy|zzzzzzzzzzz|
+|11|22|33|
+
+|aa|bb|cc|
+|xxxxxxx|yyyyyy|zzzzzzzzzzz|
+|11|22|33|
+
 

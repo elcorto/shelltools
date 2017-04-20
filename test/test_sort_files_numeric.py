@@ -16,4 +16,4 @@ def test_position_option():
         txt = sp.check_output(cmd, shell=True)
         with open('files/sort-files-numeric/results/{}'.format(result)) as fd:
             ref = fd.read()
-            assert ref == txt
+            assert ref == txt, "fail: case '{}'".format(opt)
