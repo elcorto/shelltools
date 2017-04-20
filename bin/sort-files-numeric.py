@@ -8,9 +8,9 @@ Print mv comands to rename files in numeric order.
 
 Only files which already have a number will be used (i.e. "10foo", "020bar",
 "foo010bar", "baz123", but not "baz"). Numbers can be anywhere in the filename
-(start, middle, end), but files with numbers in multiple places (like "20foo9")
-are ignored (default -p a) just as are files without any numbers. Force to use
-only certain positions with the -p/--position option.
+(start, middle, end). Files without any numbers are ignored. Files with numbers
+in multiple places (like "20foo9") are ignored by default. In that case, force
+to use only certain positions with the -p/--position option.
 
 example:
 $ sort-files-numeric.py e100 002b 0c 1b 2c 2d a5b baz 20foo9
@@ -82,8 +82,7 @@ nums = nums[sort_msk]
 new_num = args.incr
 for idx in range(len(matches)):
     if idx > 0:
-        if nums[idx] != nums[idx-1]:
-            new_num += args.incr
+        new_num += args.incr
     if args.length > 0:
         fmt = '{}{:0>%i}{}' %args.length
     else:
