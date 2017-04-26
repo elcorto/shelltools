@@ -33,18 +33,12 @@ debug(){
 verbose=false
 while getopts hvm: opt; do
     case $opt in
-    m)   method=$OPTARG
-         ;;
-    v)   verbose=true
-         ;;
-    h)   usage
-         exit 0
-         ;;
-    '?') echo "$0: invalid option -$opt" >&2
-         echo $USAGE >&2
-         exit 1
-         ;;
-esac done
+    m)  method=$OPTARG;;
+    v)  verbose=true;;
+    h)  usage; exit 0;;
+    \?) exit 1;;
+    esac 
+done
 shift $((OPTIND - 1))
 
 
