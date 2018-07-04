@@ -1,0 +1,32 @@
+#!/bin/sh
+
+set -e
+
+prog=$(basename $0)
+logfile=/tmp/log
+usage(){
+    cat << eof
+Run 
+    eval "<command> ..." 2>&1 | tee $logfile; less -i $logfile
+
+Usage:
+    $prog <command> [args]
+
+Quote when needed:
+    $prog "<command> [args] | grep stuff"
+eof
+}
+
+while getopts h opt; do
+    case $opt in
+        h)  usage; exit 0;;
+        \?) exit 1;;
+    esac 
+done
+shift $((OPTIND - 1))
+
+
+# test whether logfile is writable
+echo "test" > $logfile
+
+eval "$@" 2>&1 | tee $logfile; less -i $logfile
