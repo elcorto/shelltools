@@ -6,4 +6,4 @@ def test():
     """
     txt = sp.check_output(cmd, shell=True)
     with open('files/rst2textile/output.textile') as ref:
-        assert ref.read() == txt
+        assert ref.read().encode() == txt
