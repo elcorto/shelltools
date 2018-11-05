@@ -1,5 +1,5 @@
 #!/bin/sh
 
-# Srtip comments and blank lines from (ini-style config) files.
+# Strip comments and blank lines from files.
 
-sed -r -e '/^\s*#.*$/d; /^\s*$/d; s/^\[/\n\[/g; s/#.*$//g' $1
+sed -r -e 's/\s*#.*$//g; /^\s*$/d' $1
