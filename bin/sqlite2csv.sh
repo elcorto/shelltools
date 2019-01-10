@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # Convert sqlite database to .csv file. The .csv has a special first line. This
 # line is used to automatically create the database table. It contains column
@@ -42,7 +42,7 @@ while [ $# -gt 0 ]; do
             shift
             break
             ;;
-        *)  
+        *)
             echo "Cmd line error! Grab a coffee and recompile your kernel :)"
             exit 1
             ;;

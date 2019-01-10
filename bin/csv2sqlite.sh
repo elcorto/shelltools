@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 set -e
 
@@ -23,7 +23,7 @@ $prog [-hnw] [-t <tablename>] <csv> [<sql>]
 args
 ----
 csv : csv file to be converted
-sql : name of the target sqlite database file, default is "<csv>.sqlite" 
+sql : name of the target sqlite database file, default is "<csv>.sqlite"
 
 options
 -------
@@ -55,7 +55,7 @@ while [ $# -gt 0 ]; do
             shift
             break
             ;;
-        *)  
+        *)
             echo "cmd line error! grab a coffee and recompile your kernel :)"
             exit 1
             ;;
@@ -71,7 +71,7 @@ else
     sql=${csv}.sqlite
 fi
 [ -f $sql ] && echo "file exists: $sql" && exit 1
-[ "$sql" == "$csv" ] && echo "error: file names are the same: $csv, $sql" && exit 1
+[ "$sql" = "$csv" ] && echo "error: file names are the same: $csv, $sql" && exit 1
 # skip first row b/c that's the "header", delete leading and trailing
 # whitespace around entries
 sed -nre 's/"//g; 2,$p' $csv > $tmp
@@ -90,7 +90,7 @@ for entry in $header_raw; do
     else
         header=$header","$toadd
     fi
-done    
+done
 
 sqlite3 $sql << EOF
 .mode csv
@@ -106,6 +106,6 @@ if $null; then
     cmd=""
     for key in $keys; do
         cmd="${cmd}update $tablename set $key=NULL where $key=='';"
-    done 
+    done
     sqlite3 $sql "$cmd"
 fi
