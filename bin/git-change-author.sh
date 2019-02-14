@@ -7,7 +7,7 @@ prog=$(basename $0)
 err(){
     echo "$prog: error: $@"
     exit 1
-}    
+}
 
 usage(){
     cat << eof
@@ -16,10 +16,13 @@ user.name/user.email in $conf .
 
 usage
 -----
-First, make a backup of the repo. Now. Then:
+
+    $prog [-l] [(-e | -n) (-a | -c | -C) <old> <new> [<rev-list>]]
+
+First, make a backup of the repo (cp -a repo repo.bak). Now. Then:
 
 List author/committer.
-    
+
     $prog -l
 
 Change git author (-a) / committer (-c) name (-n) / email (-e) -- i.e. rewrite
@@ -34,8 +37,13 @@ nothing needed to be changed.
     $prog -cn  <oldname> <newname>  # GIT_COMMITTER_NAME
     $prog -acn <oldname> <newname>  # both
 
-Change .git/config (-C): set user.name (-n) / user.email (-e) 
-    
+All of the above, but apply only to specific commits. Use all that git rev-list
+accepts.
+
+    $prog ... <old...> <new...> <rev_list>
+
+Change .git/config (-C): set user.name (-n) / user.email (-e)
+
     $prog -Ce <newmail>
     $prog -Cn <newname>
 
@@ -44,7 +52,7 @@ options
 -l : list available authors and emails
 -a : author mode
 -c : committer mode
--e : change email 
+-e : change email
 -n : change name
 -C : change .git/config instead of rewriting history (-a / -c)
 
@@ -59,18 +67,21 @@ Change committer mail where there is none.
 Change author and committer name.
     $prog -acn john 'John Doe'
 
+With rev_list, e.g. the last 10 commits.
+    $prog -acn john 'John Doe' HEAD~10...
+
 Set new user.name in .git/config .
     $prog -Cn 'John Doe'
 
 notes
 -----
 You may want to do this after hg-fast-export, such as
-    
+
     $ cat ~/map
     john = John Doe <mail@doe.com>
     gf = Gaylord Focker <gl@focker.org>
     $ cd git-repo
-    $ git init 
+    $ git init
     $ hg-fast-export -r /path/to/hg-repo -A ~/map
     $ git checkout
 
@@ -128,7 +139,7 @@ while [ $# -gt 0 ]; do
             shift
             break
             ;;
-        *)  
+        *)
             echo "Cmd line error! Grab a coffee and recompile your kernel :)"
             exit 1
             ;;
@@ -150,15 +161,16 @@ fi
 
 if [ $# -eq 0 ]; then
     err "use one of -a,-c,-C plus arguments"
-fi    
+fi
 
 ($mode_author || $mode_committer || $mode_conf) \
     || err "unknown mode, expect author (-a), committer (-c) or conf (-C)"
 
 if $mode_conf; then
-    newval="$1"
+    which crudini > /dev/null 2>&1 || err "crudini not found"
     [ $# -eq 1 ] || err "expecting one arg"
     [ -f $conf ] || err "$conf not found"
+    newval="$1"
     crudini --help > /dev/null 2>&1 || err "crudini not found"
     # remove trailing whitespace to make crudini happy
     sed -i -re 's/^\s*(.*)$/\1/g' $conf
@@ -168,13 +180,19 @@ if $mode_conf; then
         crudini --set $conf user email "$newval"
     else
         err "unknown mode, expect name or mail"
-    fi        
+    fi
 else
-    [ $# -eq 2 ] || err "expecting two args"
+    [ $# -ge 2 ] || err "expecting two or more args"
     ( $mode_author || $mode_committer ) \
         || err "unknown mode, expect author (-a) or committer (-c)"
     oldval="$1"
     newval="$2"
+    if [ $# -eq 2 ]; then
+        rev_list="--all"
+    else
+        shift; shift
+        rev_list="$@"
+    fi
     if $mode_author; then
         cmd="
 if $mode_mail; then
@@ -203,5 +221,5 @@ fi
     fi
 
     # https://help.github.com/articles/changing-author-info/
-    git filter-branch --env-filter "$cmd" --tag-name-filter cat -- --all
-fi    
+    git filter-branch --env-filter "$cmd" --tag-name-filter cat -- $rev_list
+fi
