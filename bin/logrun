@@ -2,12 +2,20 @@
 
 set -e
 
-prog=$(basename $0)
-logfile=/tmp/log
+[ -d /dev/shm ] && logbase=/dev/shm || logbase=/tmp
+logfile=$(mktemp -p $logbase logrun.XXXXXXXXXXX)
+
+cleanup(){
+    rm -f $logfile
+}
+
+trap cleanup EXIT STOP INT QUIT KILL ABRT TERM HUP
+
 usage(){
+    local prog=$(basename $0)
     cat << eof
-Run 
-    eval "<command> ..." 2>&1 | tee $logfile; less -i $logfile
+Run
+    eval "<command> ..." 2>&1 | tee \$logfile; less -i \$logfile
 
 Usage:
     $prog <command> [args]
@@ -21,7 +29,7 @@ while getopts h opt; do
     case $opt in
         h)  usage; exit 0;;
         \?) exit 1;;
-    esac 
+    esac
 done
 shift $((OPTIND - 1))
 
