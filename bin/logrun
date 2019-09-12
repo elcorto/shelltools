@@ -3,10 +3,10 @@
 set -e
 
 [ -d /dev/shm ] && logbase=/dev/shm || logbase=/tmp
-logfile=$(mktemp -p $logbase logrun.XXXXXXXXXXX)
+logfile=$(mktemp -p $logbase logrun.$(date -u +%Y-%m-%dT%H-%M-%SZ).XXXXXXXXXXX)
 
 cleanup(){
-    rm -f $logfile
+    $keeplog || rm -f $logfile
 }
 
 trap cleanup EXIT STOP INT QUIT KILL ABRT TERM HUP
@@ -15,19 +15,24 @@ usage(){
     local prog=$(basename $0)
     cat << eof
 Run
-    eval "<command> ..." 2>&1 | tee \$logfile; less -i \$logfile
+    eval "<command> [<args>]" 2>&1 | tee \$logfile; less -i \$logfile
 
 Usage:
-    $prog <command> [args]
+    $prog [-k] <command> [<args>]
 
 Quote when needed:
-    $prog "<command> [args] | grep stuff"
+    $prog "<command> [<args>] | grep stuff"
+
+Options:
+    -k : don't delete logfile
 eof
 }
 
-while getopts h opt; do
+keeplog=false
+while getopts hk opt; do
     case $opt in
-        h)  usage; exit 0;;
+        h) usage; exit 0;;
+        k) keeplog=true;;
         \?) exit 1;;
     esac
 done
