@@ -6,36 +6,11 @@
 #
 # Notes:
 #
-# xterm window title
-# ------------------
-# We set the title of the xterm window with the -T option. However, on Debian,
-# just calling 
-#     $ xterm -hold -T "XVIM" 
-# has no effect: if the title is set, it gets overwritten when the spawned
-# xterm soures the bashrc file. This is special to Debian, where there is a
-# default setting (e.g. in /etc/skel/.bashrc) to override the -T title:
-#
-#     # If this is an xterm set the title to user@host:dir
-#     case "$TERM" in
-#     xterm*|rxvt*)
-#        PS1="\[\e]0;${debian_chroot:+($debian_chroot)}\u@\h: \w\a\]$PS1"
-#        ;;
-#     *)
-#        ;;
-#     esac
-# See http://www.faqs.org/docs/Linux-mini/Xterm-Title.html for how this works.
-# It is used to dynamically adjust the title as the prompt changes.
-# 
-# But here, we use
-#     $ xterm -T "XVIM" -e vim
-# which does not change the title. Probably, bashrc does not get sourced at
-# all.     
-#
 # Tell Vim that TERM=xterm-256color
 # ---------------------------------
-#     
-# Within a new xterm: 
-#     $ echo $TERM 
+#
+# Within a new xterm:
+#     $ echo $TERM
 #     xterm-256color
 # But `xterm -e vim`, in Vim `:set term` is "xterm", so TERM="term".
 # However, it works in 2 steps: 1) open xterm, 2) type "vim" in that
@@ -44,21 +19,21 @@
 # Solutions:
 #
 # openSUSE:
-#     source .bashrc / .profile:  
+#     source .bashrc / .profile:
 #     xterm -e ". ~/.bashrc && vim ..."
-# 
+#
 # Debian:
 #     source .bashrc / .profile, but take care if the default Debian .bashrc
 #     has the line
-#       
+#
 #       # If not running interactively, don't do anything
 #       [ -z "$PS1" ] && return
-#   
+#
 #   early in the file.  Then, env var defs after this line will have no
 #   effect. Either put env var defs in another file (e.g. .profile) and
 #   source that or simply `vim -T $TERM`.
-# 
-# Cross-platform: use -T  
+#
+# Cross-platform: use -T
 #
 #------------------------------------------------------------------------------
 
@@ -73,7 +48,7 @@ the xterm window.
 
 usage:
 ------
-xvim [-h | --help] [-mp] [vim options] [files | -] 
+xvim [-h | --help] [-mp] [vim options] [files | -]
 
 args:
 -----
@@ -84,7 +59,7 @@ options:
 -h : this help
 -mp : Use some vim options to display man pages. Most likely, you will do
         $ man <foo> | xvim -mp -
-      May be slow for big man pages.  
+      May be slow for big man pages.
 
 notes:
 ------
@@ -114,9 +89,9 @@ if $debug; then
     debug_log=/tmp/xvim-debug.$$
     echo "xvim: debug log: $debug_log"
     echo '' > $debug_log
-    exec 6>&1     
-    exec 7>&2     
-    # redirect ALL following stdout (1) and stderr (2) to $debug_log 
+    exec 6>&1
+    exec 7>&2
+    # redirect ALL following stdout (1) and stderr (2) to $debug_log
     # (>> = append)
     exec >>$debug_log
     exec 2>>$debug_log
@@ -131,8 +106,8 @@ read_from_stdin=false
 man_mode=false
 while [ $# -gt 0 ]; do
     dbg_msg "xvim: \$1: $1"
-    case $1 in 
-        -h | --help) 
+    case $1 in
+        -h | --help)
             usage
             exit 0
             ;;
@@ -151,7 +126,7 @@ if $man_mode; then
     vim_opts="-R -c 'set nomod nolist ft=man' -c 'map q :q<CR>'"
 else
     vim_opts=""
-fi    
+fi
 
 # If called from some GUI app, we have funny env settings. TERM is "dumb" and
 # .vimrc doesn't seem to get sourced. Avoid calling shell-specific scripts here
@@ -167,11 +142,11 @@ if [ "$TERM" = "dumb" -o -z "$TERM" ]; then
         dbg_msg "TERM='$TERM', trying $profile ..."
         if [ -f $profile ]; then
             . $profile
-            if [ "$TERM" != "dumb" -a -n "$TERM" ]; then 
-                dbg_msg '... ok' 
+            if [ "$TERM" != "dumb" -a -n "$TERM" ]; then
+                dbg_msg '... ok'
                 break
-            fi                
-        fi            
+            fi
+        fi
     done
 fi
 
@@ -179,7 +154,6 @@ dbg_msg "using TERM=$TERM"
 vim_opts=$vim_opts" -T $TERM"
 dbg_msg "\$vim_opts: $vim_opts"
 
-title_base="xvim: [$USER@$(hostname) $(pwd | sed -re "#$HOME#~#")]"
 if $read_from_stdin; then
     tmpf=$(mktemp)
     msg "filling tmp file, wait ..."
@@ -190,14 +164,14 @@ if $read_from_stdin; then
     done
     msg "... done"
     if $man_mode; then
-        xterm -T "$title_base stdin" -e "cat $tmpf | col -bx | vim $vim_opts -"
+        xterm "cat $tmpf | col -bx | vim $vim_opts -"
     else
-        xterm -T "$title_base stdin" -e "vim $vim_opts -c 'set nomod' $tmpf"
-    fi        
+        xterm -e "vim $vim_opts -c 'set nomod' $tmpf"
+    fi
     # After closing the xterm, delete the tmp file.
     rm $tmpf
 else
-    cmd="xterm -T \"$title_base $prms\" -e \"vim $vim_opts $prms\""
+    cmd="xterm -e \"vim $vim_opts $prms\""
     dbg_msg "calling: $cmd"
     eval $cmd
 fi
@@ -206,6 +180,6 @@ if $debug; then
     # restore stdout=1, stderr=2 and close the tmp fds 6 and 7
     exec 1>&6 6>&-
     exec 2>&7 7>&-
-fi    
+fi
 
 exit 0
