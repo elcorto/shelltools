@@ -1,6 +1,6 @@
 #!/bin/sh
 
-set -e
+set -eu
 
 [ -d /dev/shm ] && logbase=/dev/shm || logbase=/tmp
 logfile=$(mktemp -p $logbase logrun.$(date -u +%Y-%m-%dT%H-%M-%SZ).XXXXXXXXXXX)
@@ -15,7 +15,7 @@ usage(){
     local prog=$(basename $0)
     cat << eof
 Run
-    eval "<command> [<args>]" 2>&1 | tee \$logfile; less -i \$logfile
+    <command> [<args>] 2>&1 | tee \$logfile; less -i \$logfile
 
 Usage:
     $prog [-k] <command> [<args>]
@@ -38,8 +38,8 @@ while getopts hk opt; do
 done
 shift $((OPTIND - 1))
 
-
 # test whether logfile is writable
 echo "test" > $logfile
 
-eval "$@" 2>&1 | tee $logfile; less -i $logfile
+$@ 2>&1 | tee $logfile
+less -i $logfile
