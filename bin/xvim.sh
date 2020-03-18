@@ -40,26 +40,14 @@
 usage(){
     cat << eof
 
-xvim -- a cool alternative to gvim using xterm
+xvim -- an alternative to gvim using xterm
 
-This script basically does "xterm -e vim \$@", whith some bells and whistles
-like man mage viewing, gentle TERM handling etc. Use like normal vim, :q closes
-the xterm window.
+This script basically does "xterm -e vim \$@", whith gentle TERM handling. Use
+like normal vim, :q closes the xterm window.
 
 usage:
 ------
-xvim [-h | --help] [-mp] [vim options] [files | -]
-
-args:
------
-files : anything that vim would handle, use "-" to read from stdin
-
-options:
---------
--h : this help
--mp : Use some vim options to display man pages. Most likely, you will do
-        $ man <foo> | xvim -mp -
-      May be slow for big man pages.
+xvim [-h] [vim options] [vim args]
 
 notes:
 ------
@@ -80,11 +68,6 @@ dbg_msg(){
     $debug && echo "xvim: DEBUG: $@"
 }
 
-msg(){
-    # use global var $debug
-    echo "xvim: $@"
-}
-
 if $debug; then
     debug_log=/tmp/xvim-debug.$$
     echo "xvim: debug log: $debug_log"
@@ -102,31 +85,18 @@ dbg_msg $(date)
 # parse cmd line
 prms="$@"
 dbg_msg "prms: $prms"
-read_from_stdin=false
-man_mode=false
 while [ $# -gt 0 ]; do
     dbg_msg "xvim: \$1: $1"
     case $1 in
-        -h | --help)
+        -h)
             usage
             exit 0
-            ;;
-        -mp)
-            man_mode=true
-            ;;
-        -)
-            msg "reading from stdin"
-            read_from_stdin=true
             ;;
     esac
     shift
 done
 
-if $man_mode; then
-    vim_opts="-R -c 'set nomod nolist ft=man' -c 'map q :q<CR>'"
-else
-    vim_opts=""
-fi
+vim_opts=""
 
 # If called from some GUI app, we have funny env settings. TERM is "dumb" and
 # .vimrc doesn't seem to get sourced. Avoid calling shell-specific scripts here
@@ -135,6 +105,7 @@ fi
 if [ -f $HOME/.vimrc ]; then
     vim_opts=$vim_opts" -u $HOME/.vimrc"
 fi
+
 # One of these files must define TERM.
 profile_lst="$HOME/.profile_common $HOME/.profile"
 if [ "$TERM" = "dumb" -o -z "$TERM" ]; then
@@ -154,27 +125,9 @@ dbg_msg "using TERM=$TERM"
 vim_opts=$vim_opts" -T $TERM"
 dbg_msg "\$vim_opts: $vim_opts"
 
-if $read_from_stdin; then
-    tmpf=$(mktemp)
-    msg "filling tmp file, wait ..."
-    while IFS="" read line; do
-        # Must use `"$line"' instead of `$line' to display all whitespaces
-        # properly.
-        echo "$line" >> $tmpf
-    done
-    msg "... done"
-    if $man_mode; then
-        xterm "cat $tmpf | col -bx | vim $vim_opts -"
-    else
-        xterm -e "vim $vim_opts -c 'set nomod' $tmpf"
-    fi
-    # After closing the xterm, delete the tmp file.
-    rm $tmpf
-else
-    cmd="xterm -e \"vim $vim_opts $prms\""
-    dbg_msg "calling: $cmd"
-    eval $cmd
-fi
+cmd="xterm -e \"vim $vim_opts $prms\""
+dbg_msg "calling: $cmd"
+eval $cmd
 
 if $debug; then
     # restore stdout=1, stderr=2 and close the tmp fds 6 and 7
