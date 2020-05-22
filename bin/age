@@ -32,12 +32,12 @@ last modification time.
 
 usage:
 ------
-age.py [-h] [-o <offset> | -s] <files>
+age [-h] [-o <offset> | -s] <files>
 
-age.py <files> -o <offset>
-age.py <files> -s
-<files> | age.py -o <offset>
-<files> | age.py -s
+age <files> -o <offset>
+age <files> -s
+<files> | age -o <offset>
+<files> | age -s
 
 Use either -o/--offset or -s/--sort .
 
@@ -61,24 +61,24 @@ options:
 example:
 --------
 Files younger than 10 minutes.
-$ find -name pw.in | age.py -o -10m
+$ find -name pw.in | age -o -10m
 $ find -name pw.in -mmin -10
 
 Files older than half a year.
-$ age.py -o 0.5y $(locate pw.in)
-$ age.py -o +128d $(locate pw.in)
+$ age -o 0.5y $(locate pw.in)
+$ age -o +128d $(locate pw.in)
 $ find / -name pw.in -mtime 3840
 
 Files between 3 and 1 month old.
-$ locate pw.in | age.py -o -3M | age.py -o 1M
+$ locate pw.in | age -o -3M | age -o 1M
 
 Sort files.
 $ ls -1rt
-$ ls -1 | age.py -s
-$ locate ... | age.py -s
+$ ls -1 | age -s
+$ locate ... | age -s
 
 Sort files from last week, print last modification time.
-$ find -name pw.in | age.py -o -1w | age.py -s | xargs -l stat -c '%y %n'
+$ find -name pw.in | age -o -1w | age -s | xargs -l stat -c '%y %n'
 """
 
 def parse_offset(st):
