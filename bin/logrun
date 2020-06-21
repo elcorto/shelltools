@@ -15,7 +15,7 @@ usage(){
     local prog=$(basename $0)
     cat << eof
 Run
-    <command> [<args>] 2>&1 | tee \$logfile; less -i \$logfile
+    <command> [<args>] 2>&1 | tee \$logfile; less -in \$logfile
 
 Usage:
     $prog [-k] <command> [<args>]
@@ -42,4 +42,4 @@ shift $((OPTIND - 1))
 echo "test" > $logfile
 
 $@ 2>&1 | tee $logfile
-less -i $logfile
+less -i -n $logfile
