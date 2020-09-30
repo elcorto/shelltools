@@ -36,9 +36,17 @@ mark(){
     cat | sed 's/^/=> /g'
 }
 
+get_repos(){
+    find $@ -type d -name .git | xargs dirname
+}
+
 gogo(){
     local dr=$1
-    [ -d $dr/.git ] && _gogo $dr || echo "skip: $dr"
+    if [ -d $dr/.git ]; then
+        $list_repos && echo "$dr" | tr -d '\n' || _gogo $dr
+    else
+        echo "skip: $dr"
+    fi
 }
 
 _gogo(){
@@ -116,20 +124,38 @@ branches have the same name here and there). All infos are marked with "=>".
 
 usage
 -----
-$prog [repo1/ [repo2/ [...]]]
+$prog [options] [dir1 [dir2 [...]]]
 
 Default is the current dir.
 
 options
 -------
 -f : run "git fetch <remote>" at first
--F : fork
+-F : fork: use for speed
+-r : recursive: find all repos in each dir, else we assume dir1, dir2, ... are
+     repos
+-l : list repos: instead of running the above analytics, just list repos, useful
+     with -r
+
+examples
+--------
+Use two repos.
+    $ $prog /path/to/repo1 /path/to/repo2
+
+Only list all repos in the current dir.
+    $ $prog -rl
+
+Find all repos, run fetch in each, then all other analytics. Fork b/c we
+have many repos there.
+    $ $prog -rfF ~/soft/git ~/work/repos
 eof
 }
 
+recursive=false
 fetch=false
 fork=false
-cmdline=$(getopt -o hfF -n $prog -- "$@")
+list_repos=false
+cmdline=$(getopt -o hfFrl -n $prog -- "$@")
 eval set -- "$cmdline"
 while [ $# -gt 0 ]; do
     case $1 in
@@ -138,6 +164,12 @@ while [ $# -gt 0 ]; do
             ;;
         -F)
             fork=true
+            ;;
+        -r)
+            recursive=true
+            ;;
+        -l)
+            list_repos=true
             ;;
         -h)
             usage
@@ -155,17 +187,22 @@ while [ $# -gt 0 ]; do
     shift
 done
 
-if [ $# -eq 0 ]; then
-    gogo .
-else
-    for dr in $@; do
-        if $fork; then
-            (txt=$(gogo $dr);
-             echo "$txt";
-             echo "") &
-        else
-            gogo $dr
-            echo ""
-        fi
-    done
-fi
+
+[ $# -eq 0 ] && root_dirs=./ || root_dirs=$@
+
+for dr in $root_dirs; do
+    [ -d $dr ] || err "not a dir: $dr"
+done
+
+$recursive && repo_dirs=$(get_repos $root_dirs) || repo_dirs=$root_dirs
+
+for repo in $repo_dirs; do
+    if $fork; then
+        (txt=$(gogo $repo);
+         echo "$txt";
+         echo "") &
+    else
+        gogo $repo
+        echo ""
+    fi
+done
