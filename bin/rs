@@ -1,0 +1,31 @@
+#!/bin/sh
+
+# Toggle redshift -O <temperature> on and off.
+
+set -eu
+
+
+err(){
+    echo "$(basename $0): error: $@"
+    exit 1
+}
+
+conf_dir=$HOME/.config/rs
+on_file=$conf_dir/on
+temp_file=$conf_dir/temp
+
+[ -e $conf_dir ] || err "$conf_dir not found"
+
+
+if [ -e $on_file ]; then
+    echo "disable redshift"
+    redshift -x > /dev/null
+    rm $on_file
+else
+    [ -e $temp_file ] || err "$temp_file not found"
+    echo "enable redshift"
+    redshift -x > /dev/null
+    sleep 1
+    redshift -O $(cat $temp_file) > /dev/null
+    touch $on_file
+fi
