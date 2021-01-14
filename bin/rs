@@ -1,8 +1,12 @@
 #!/bin/sh
 
-# Toggle redshift -O <temperature> on and off.
+# Toggle redshift -O <temperature> on and off. We read the "one shot manual
+# temperature" from $temp_value_file and use a $state_file to detect whether we
+# are on or off.
 
-set -eu
+# Can't use set -e b/c in run(), grep will exit 1 if there is no match. grep -q
+# doesn't change that. Hmmpf.
+set -u
 
 
 err(){
@@ -10,22 +14,29 @@ err(){
     exit 1
 }
 
+# Filter out annoying messages but still print errors. Downside: we probably
+# always exit w/ grep's exit code.
+run(){
+    $@ 2>&1 | grep -qivE 'wayland|trying next method|using method.*randr'
+}
+
+
 conf_dir=$HOME/.config/rs
-on_file=$conf_dir/on
-temp_file=$conf_dir/temp
+state_file=$conf_dir/on
+temp_value_file=$conf_dir/temp
 
 [ -e $conf_dir ] || err "$conf_dir not found"
 
 
-if [ -e $on_file ]; then
+if [ -e $state_file ]; then
     echo "disable redshift"
-    redshift -x > /dev/null
-    rm $on_file
+    run redshift -x
+    rm $state_file
 else
-    [ -e $temp_file ] || err "$temp_file not found"
+    [ -e $temp_value_file ] || err "$temp_value_file not found"
     echo "enable redshift"
-    redshift -x > /dev/null
+    run redshift -x
     sleep 1
-    redshift -O $(cat $temp_file) > /dev/null
-    touch $on_file
+    run redshift -O $(cat $temp_value_file)
+    touch $state_file
 fi
