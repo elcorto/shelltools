@@ -37,6 +37,6 @@ else
     echo "enable redshift"
     run redshift -x
     sleep 1
-    run redshift -O $(cat $temp_value_file)
+    run redshift -O $(grep -v '^#.*' $temp_value_file)
     touch $state_file
 fi
