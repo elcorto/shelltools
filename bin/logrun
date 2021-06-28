@@ -42,4 +42,4 @@ shift $((OPTIND - 1))
 echo "test" > $logfile
 
 $@ 2>&1 | tee $logfile
-less -i -n $logfile
+less -i -n -R $logfile
