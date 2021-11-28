@@ -17,7 +17,7 @@ err(){
 # Filter out annoying messages but still print errors. Downside: we probably
 # always exit w/ grep's exit code.
 run(){
-    $@ 2>&1 | grep -qivE 'wayland|trying next method|using method.*randr'
+    $@ 2>&1 | grep -ivE 'wayland|trying next method|using method.*randr'
 }
 
 
