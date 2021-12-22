@@ -43,7 +43,6 @@ shift $((OPTIND - 1))
 
 for fn in $@; do
     src_dir=$(abspath $(dirname $fn))
-    [ "$src_dir" = "$tgt_dir" ] && err "$fn: src_dir ($src_dir) = tgt_dir
-($tgt_dir), won't overwrite"
+    [ "$src_dir" = "$tgt_dir" ] && backup -p '.backup-' $fn
     convert -resize ${percent}% $fn $tgt_dir/$(basename $fn)
 done
