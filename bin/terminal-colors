@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """2.3.0 John Eikenberry <jae@zhar.net> GPL-3+ http://zhar.net/projects/
 
@@ -49,8 +49,6 @@ Contributors
         - 88 color rgb display bugfix
 
 """
-from __future__ import print_function
-
 __version__ = __doc__.split('\n')[0]
 
 import sys
