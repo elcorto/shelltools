@@ -42,7 +42,7 @@ get_repos(){
 
 gogo(){
     local dr=$1
-    if [ -d $dr/.git ]; then
+    if [ -e $dr/.git ]; then
         $list_repos && echo "$dr" | tr -d '\n' || _gogo $dr
     else
         echo "skip: $dr"
