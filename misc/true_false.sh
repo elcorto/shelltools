@@ -3,6 +3,29 @@
 # 0 (true) or != 0 (false). The shell builtins true/false evaluate to 0/1 (as
 # in a=true).
 #
+# Logical-and command chains return (evaluate to) the exit status of the last
+# executed command. exit 0 continues. Any exit status != 0 breaks the chain.
+#
+# We need to use subshells (...) else each exit will kill the terminal :-)
+#
+# $ (exit 0) && echo 2 && (exit 111) && echo 4; echo $?
+# 2
+# 111
+#
+# Logical-or chains are a bit harder to reason about, but behave like bool
+# expressions as well.
+#
+# $ (echo false; exit 1) || (echo true1; exit 0) && (echo true2; exit 0); echo $?
+# false
+# true1
+# true2
+# 0
+#
+# $ (echo false1; exit 1) || (echo false2; exit 1) && (echo true; exit 0); echo $?
+# false1
+# false2
+# 1
+#
 # [1] http://pubs.opengroup.org/onlinepubs/9699919799/xrat/V4_xcu_chap02.html
 
 header(){
@@ -27,26 +50,37 @@ header "always use one of these:"
 
 exe '[ 1 -eq 1 -a 1 -eq 1 ]'
 exe '[ 1 -eq 1 -a 1 -eq 2 ]'
+exe '[ 1 -eq 2 -a 1 -eq 1 ]'
 exe '[ 1 -eq 2 -a 1 -eq 2 ]'
 
+echo ""
 exe '[ 1 -eq 1 -o 1 -eq 1 ]'
 exe '[ 1 -eq 1 -o 1 -eq 2 ]'
+exe '[ 1 -eq 2 -o 1 -eq 1 ]'
 exe '[ 1 -eq 2 -o 1 -eq 2 ]'
 
+echo ""
 exe '[ \( 1 -eq 1 \) -a \( 1 -eq 1 \) ]'
 exe '[ \( 1 -eq 1 \) -a \( 1 -eq 2 \) ]'
+exe '[ \( 1 -eq 2 \) -a \( 1 -eq 1 \) ]'
 exe '[ \( 1 -eq 2 \) -a \( 1 -eq 2 \) ]'
 
+echo ""
 exe '[ \( 1 -eq 1 \) -o \( 1 -eq 1 \) ]'
 exe '[ \( 1 -eq 1 \) -o \( 1 -eq 2 \) ]'
+exe '[ \( 1 -eq 2 \) -o \( 1 -eq 1 \) ]'
 exe '[ \( 1 -eq 2 \) -o \( 1 -eq 2 \) ]'
 
+echo ""
 exe '[ 1 -eq 1 ] && [ 1 -eq 1 ]'
 exe '[ 1 -eq 1 ] && [ 1 -eq 2 ]'
+exe '[ 1 -eq 2 ] && [ 1 -eq 1 ]'
 exe '[ 1 -eq 2 ] && [ 1 -eq 2 ]'
 
+echo ""
 exe '[ 1 -eq 1 ] || [ 1 -eq 1 ]'
 exe '[ 1 -eq 1 ] || [ 1 -eq 2 ]'
+exe '[ 1 -eq 2 ] || [ 1 -eq 1 ]'
 exe '[ 1 -eq 2 ] || [ 1 -eq 2 ]'
 
 
@@ -54,21 +88,13 @@ header "using builtins true/false:"
 
 exe 'true && true'
 exe 'true && false'
+exe 'false && true'
 exe 'false && false'
+echo ""
 exe 'true || true'
 exe 'true || false'
+exe 'false || true'
 exe 'false || false'
-
-
-header "sanity check:"
-
-exe '[ 1 -eq 1 -a 2 -eq 1 ]'
-exe '[ 2 -eq 1 -a 1 -eq 2 ]'
-exe '[ 2 -eq 1 -a 2 -eq 1 ]'
-
-exe '[ 1 -eq 1 -o 2 -eq 1 ]'
-exe '[ 2 -eq 1 -o 1 -eq 2 ]'
-exe '[ 2 -eq 1 -o 2 -eq 1 ]'
 
 
 header "true/false builtin subtleties:"
