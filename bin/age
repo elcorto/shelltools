@@ -129,7 +129,8 @@ if __name__ == '__main__':
     #   stdin:   []
     files = args
     if files == []:
-        files = [x.strip() for x in sys.stdin.readlines()]
+        files = (x.strip() for x in sys.stdin.readlines())
+        files = [x for x in files if os.path.exists(x)]
     if files == []:
         raise StandardError("missing files")
 
