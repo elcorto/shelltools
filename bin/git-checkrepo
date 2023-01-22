@@ -127,9 +127,9 @@ prog=$(basename $0)
 usage(){
     cat << eof
 In each git repo, run "git fetch" for each remote (e.g. mostly only origin,
-probably) if -f (fetch). Then show if we are ahead/behind in some branch for that
-remote. Also, show local-only branches, and new remote branches (assumtion:
-branches have the same name here and there). All infos are marked with "=>".
+probably) if -f (fetch). Then show if we are ahead/behind in some branch for
+that remote. Also, show local-only branches, and new remote branches. All infos
+are marked with "=>".
 
 usage
 -----
