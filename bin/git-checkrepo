@@ -76,13 +76,13 @@ _gogo(){
     # feature/bar
     # some-test
     local_br=$($gitcmd branch -av | grep -v remotes \
-        | sed -re 's/^(\s|\*)*//g'  | mawk '{print $1}')
+        | sed -re 's/^(\s|\*)*//g'  | awk '{print $1}')
     # origin/master
     # origin/develop
     # origin/feature-foo
     # origin/feature/bar
     # dev/some-test
-    remote_br_full=$($gitcmd branch -rv | mawk '{print $1}' \
+    remote_br_full=$($gitcmd branch -rv | awk '{print $1}' \
         | grep -v HEAD | sort -u)
     for lb in $local_br; do
         if ! echo "$remote_br_full" | grep -q $lb; then
@@ -100,7 +100,7 @@ _gogo(){
         #   feature/bar
         # rr=dev
         #   some-test
-        remote_br_rr=$($gitcmd branch -rv | mawk "/^[ ]+$rr/ {print \$1}" \
+        remote_br_rr=$($gitcmd branch -rv | awk "/^[ ]+$rr/ {print \$1}" \
             | sed -re "s|$rr/||g" | grep -v HEAD | sort -u)
         for rb in $remote_br_rr; do
             if echo "$local_br" | grep -q $rb; then
