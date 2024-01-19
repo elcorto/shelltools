@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 # This script filters files matching some time spec out of a list of files. One
 # could use "find -mtime ..." but find(1) is really slow when searching a dir
@@ -116,9 +116,9 @@ if __name__ == '__main__':
         sys.exit()
 
     if (opts.offset is None) and (not opts.sort):
-            raise StandardError("use -o/--offset or -s/--sort")
+            raise ValueError("use -o/--offset or -s/--sort")
     elif (opts.offset is not None) and (opts.sort):
-            raise StandardError("use only one of -o/--offset or -s/--sort")
+            raise ValueError("use only one of -o/--offset or -s/--sort")
     elif opts.offset is not None:
         offset = parse_offset(opts.offset)
     # else opts.sort == True
@@ -132,7 +132,7 @@ if __name__ == '__main__':
         files = (x.strip() for x in sys.stdin.readlines())
         files = [x for x in files if os.path.exists(x)]
     if files == []:
-        raise StandardError("missing files")
+        raise ValueError("missing files")
 
     # os.stat() returns a tuple of len 10, where the last three are
     #     (..., st_atime, st_mtime, st_ctime)
