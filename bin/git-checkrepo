@@ -37,7 +37,12 @@ mark(){
 }
 
 get_repos(){
-    find $@ -type d -name .git | xargs dirname
+    found=$(find $@ -type d -name .git)
+    if [ -z "$found" ]; then
+        echo ""
+    else
+        echo "$found" | xargs dirname
+    fi
 }
 
 gogo(){
@@ -209,7 +214,15 @@ for dr in $root_dirs; do
     [ -d $dr ] || err "not a dir: $dr"
 done
 
-$recursive && repo_dirs=$(get_repos $root_dirs) || repo_dirs=$root_dirs
+if $recursive; then
+    repo_dirs=$(get_repos $root_dirs)
+    if [ -z "$repo_dirs" ]; then
+        echo "no repos found in: $root_dirs"
+        exit 0
+    fi
+else
+    repo_dirs=$root_dirs
+fi
 
 for repo in $repo_dirs; do
     if $fork; then
