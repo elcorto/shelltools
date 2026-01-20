@@ -47,10 +47,29 @@ get_repos(){
 
 gogo(){
     local dr=$1
-    if [ -e $dr/.git ]; then
+    local start_dr=$dr
+    if $search_upwards; then
+        max_itr=50
+        itr=$max_itr
+        while ! [ -e $dr/.git ]; do
+            dr=$(readlink -f $dr/..)
+            itr=$(( $itr - 1 ))
+            if [ $itr -eq 0 ]; then
+                echo "max iter reached, no git repo found at $start_dr and above"
+                exit 0
+            fi
+            if [ "$dr" = "/" ]; then
+                echo "root hit, no git repo found at $start_dr and above"
+                exit 0
+            fi
+        done
         $list_repos && echo -n "$dr" || _gogo $dr
     else
-        echo "skip: $dr"
+        if [ -e $dr/.git ]; then
+            $list_repos && echo -n "$dr" || _gogo $dr
+        else
+            echo "skip: $dr"
+        fi
     fi
 }
 
@@ -146,11 +165,13 @@ options
 -------
 -f : run "git fetch <remote>" at first
 -F : fork: use for speed
--r : recursive: find all repos in each dir, else we assume dir1, dir2, ... are
-     repos
+-r : recursive: find all repos in each dir recursively, else we assume
+     dir1, dir2, ... are repos
 -l : list repos: instead of running the above analytics, just list repos, useful
      with -r
 -p : run "git remote prune <remote>" for all remotes
+-u : if a dir has no .git/ then search upwards until we find one, doesn't work
+     with -r
 
 examples
 --------
@@ -171,8 +192,9 @@ fetch=false
 fork=false
 list_repos=false
 prune_remotes=false
+search_upwards=false
 
-cmdline=$(getopt -o hfFrlp -n $prog -- "$@")
+cmdline=$(getopt -o hfFrlpu -n $prog -- "$@")
 eval set -- "$cmdline"
 while [ $# -gt 0 ]; do
     case $1 in
@@ -191,6 +213,9 @@ while [ $# -gt 0 ]; do
         -p)
             prune_remotes=true
             ;;
+        -u)
+            search_upwards=true
+            ;;
         -h)
             usage
             exit 0
@@ -207,6 +232,7 @@ while [ $# -gt 0 ]; do
     shift
 done
 
+$recursive && $search_upwards && err "use either -r or -u"
 
 [ $# -eq 0 ] && root_dirs=./ || root_dirs=$@
 
