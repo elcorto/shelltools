@@ -1,27 +1,19 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import argparse
-import re
 import subprocess
 import sys
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from email.utils import getaddresses
-
-VALIDITY_RE = re.compile(
-    r"^\s*validity:\s*(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})\s+through\s+"
-    r"(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})\s*$"
-)
-AKA_RE = re.compile(r"^\s*aka:\s*(.+?)\s*$", re.IGNORECASE)
-FPR_RE = re.compile(r"^\s*sha\d+\s+fpr:\s*([0-9A-Fa-f:]+)\s*$")
+from collections import defaultdict
 
 
 @dataclass
 class Cert:
     emails: list[str]
-    not_after: datetime
+    valid_until: datetime
     fpr: str
-    raw: list[str]
     is_valid: bool
 
 
@@ -35,350 +27,173 @@ class Classified:
     best_for_fpr: dict[str, list[str]]
 
 
-def system(cmd: list[str]) -> subprocess.CompletedProcess:
+def system(cmd: list[str]) -> str:
     try:
-        proc = subprocess.run(
-            cmd,
-            text=True,
-            check=True,
-            stderr=subprocess.STDOUT,
-            stdout=subprocess.PIPE,
-        )
+        proc = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        if proc.stderr:
+            sys.stderr.write(proc.stderr)
+        return proc.stdout
     except subprocess.CalledProcessError as ex:
-        sys.stderr.write(ex.stdout)
-        raise SystemExit(ex.returncode)
-    return proc
+        sys.stderr.write(ex.stderr)
+        sys.exit(ex.returncode)
 
 
-def parse_validity_end(end_date: str, end_time: str) -> datetime:
-    end_dt = f"{end_date} {end_time}"
-    dt = datetime.strptime(end_dt, "%Y-%m-%d %H:%M:%S")
-    return dt.replace(tzinfo=timezone.utc)
-
-
-def parse_aka_emails(aka_value: str) -> list[str]:
-    emails = [addr.lower() for _, addr in getaddresses([aka_value]) if addr]
-    return emails
+def extract_emails(text: str) -> list[str]:
+    """Extract emails from <foo@bar.com> syntax, falling back to a stricter regex."""
+    # Look for bracketed strings that contain at least one @
+    bracketed = re.findall(r"<([^>@]+@[^>@]+)>", text)
+    if bracketed:
+        return [m.lower() for m in bracketed]
+    # Stricter fallback to avoid picking up DN labels or junk
+    pattern = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
+    return [m.lower() for m in re.findall(pattern, text)]
 
 
 def normalize_email(value: str) -> str:
-    parsed = parse_aka_emails(value)
-    if parsed:
-        return parsed[0]
-    return value.strip().lower()
+    parsed = extract_emails(value)
+    return parsed[0] if parsed else value.strip().lower()
 
 
-def parse_cert_block(block_lines: list[str], now_utc: datetime) -> Cert:
-    emails = []
-    not_after = None
-    fpr = None
-    id_line = None
-
-    for line in block_lines:
-        if id_line is None and line.lstrip().startswith("ID:"):
-            id_line = line.strip()
-        m = AKA_RE.match(line)
-        if m:
-            emails.extend(parse_aka_emails(m.group(1).strip()))
-
-        m = VALIDITY_RE.match(line)
-        if m:
-            not_after = parse_validity_end(m.group(3), m.group(4))
-
-        m = FPR_RE.match(line)
-        if m and fpr is None:
-            fpr = m.group(1).strip()
-
-    if fpr is None:
-        details = f" ({id_line})" if id_line else ""
-        raise ValueError(f"Missing fingerprint in certificate block{details}")
-
-    if not_after is None:
-        details = f" ({id_line})" if id_line else ""
-        raise ValueError(f"Missing validity in certificate block{details}")
-
-    emails = list(dict.fromkeys(emails))
-
-    return Cert(
-        emails=emails,
-        not_after=not_after,
-        fpr=fpr,
-        raw=block_lines,
-        is_valid=not_after >= now_utc,
-    )
+def parse_date(ts: str) -> datetime:
+    """Parse GPG date format YYYYMMDDTHHMMSS, default to max if missing/invalid."""
+    try:
+        return datetime.strptime(ts, "%Y%m%dT%H%M%S").replace(
+            tzinfo=timezone.utc
+        )
+    except (ValueError, TypeError):
+        return datetime.max.replace(tzinfo=timezone.utc)
 
 
-def parse_gpgsm_certs(now_utc: datetime, keep_email: str) -> list[Cert]:
-    stdout = system(["gpgsm", "--list-keys"]).stdout
-    certs = []
-    current = []
-    started = False
-    keep_email_found = False
-    parsed_email_set = set()
-
-    def process_block(block: list[str]) -> bool:
-        if not block:
-            return False
-        cert = parse_cert_block(block, now_utc)
-        parsed_email_set.update(cert.emails)
-        certs.append(cert)
-        return keep_email in cert.emails
+def parse_gpgsm_certs(now: datetime, keep_email: str) -> list[Cert]:
+    stdout = system(["gpgsm", "--list-keys", "--with-colons"])
+    certs, cur = [], None
 
     for line in stdout.splitlines():
-        if line.lstrip().startswith("ID:"):
-            started = True
-            if current:
-                keep_email_found |= process_block(current)
-                current = []
-        if not started:
+        fields = [field.strip() for field in line.split(":")]
+        if not fields:
             continue
-        current.append(line)
+        if fields[0] == "crt" and len(fields) >= 7:
+            if cur:
+                certs.append(cur)
+            valid_until = parse_date(fields[6])
+            cur = Cert(
+                emails=[],
+                valid_until=valid_until,
+                fpr="",
+                is_valid=valid_until >= now,
+            )
+        elif fields[0] == "fpr" and cur and len(fields) >= 10:
+            cur.fpr = fields[9]
+        elif fields[0] == "uid" and cur and len(fields) >= 10:
+            cur.emails.extend(extract_emails(fields[9]))
 
-    if current:
-        keep_email_found |= process_block(current)
+    if cur:
+        certs.append(cur)
     if not certs:
-        raise ValueError("No certificates found in gpgsm output")
-    if not keep_email_found:
+        raise ValueError("No certificates found")
+
+    for cert in certs:
+        cert.emails = list(dict.fromkeys(cert.emails))
+
+    if not any(keep_email in c.emails for c in certs):
         raise ValueError(
-            f"Keep email '{keep_email}' not found in {len(parsed_email_set)} parsed email(s)"
+            f"Keep email '{keep_email}' not found in any certificate"
         )
     return certs
 
 
-def delete_cert(fpr: str):
-    system(["gpgsm", "--batch", "--yes", "--delete-key", fpr])
-
-
 def classify_certs(certs: list[Cert], keep_email: str) -> Classified:
-    """
-    Classify certificates into categories.
-
-    Returns Classified with:
-        - keep_email: list of certs for --keep-email
-        - keep_no_aka: list of certs without email (safety)
-        - keep_best_valid: list of valid certs that are best per recipient
-        - keep_best_expired: list of expired certs that are best per recipient
-        - to_delete: list of certs to delete
-        - best_for_fpr: dict mapping fpr -> list of emails
-    """
-    result = Classified(
+    res = Classified(
         keep_email=[],
         keep_no_aka=[],
         keep_best_valid=[],
         keep_best_expired=[],
         to_delete=[],
-        best_for_fpr={},
+        best_for_fpr=defaultdict(list),
     )
+    best_for_email = {}
 
-    uncategorized = []
-
-    # First pass: categorize keep_email and keep_no_aka
     for cert in certs:
-        if not cert.emails:
-            result.keep_no_aka.append(cert)
-        elif keep_email in cert.emails:
-            result.keep_email.append(cert)
-        else:
-            uncategorized.append(cert)
-
-    # Second pass: find best cert per recipient email
-    best_for_email = {}  # email -> Cert
-
-    def best_key(cert: Cert) -> tuple[bool, datetime, str]:
-        return (cert.is_valid, cert.not_after, cert.fpr)
-
-    for cert in uncategorized:
         for email in cert.emails:
-            current_best = best_for_email.get(email)
-            if current_best is None or best_key(cert) > best_key(current_best):
+            cur = best_for_email.get(email)
+            if not cur or (cert.is_valid, cert.valid_until, cert.fpr) > (
+                cur.is_valid,
+                cur.valid_until,
+                cur.fpr,
+            ):
                 best_for_email[email] = cert
 
-    # Build reverse map: cert_fpr -> [emails it's best for]
-    best_for_fpr = {}  # fpr -> [emails]
     for email, cert in best_for_email.items():
-        if cert.fpr not in best_for_fpr:
-            best_for_fpr[cert.fpr] = []
-        best_for_fpr[cert.fpr].append(email)
-    result.best_for_fpr = best_for_fpr
-
-    # Mark best certs as keep_best_valid or keep_best_expired
-    for cert in uncategorized:
-        if cert.fpr in best_for_fpr:
-            if cert.is_valid:
-                result.keep_best_valid.append(cert)
-            else:
-                result.keep_best_expired.append(cert)
-
-    # Third pass: mark remaining expired as to_delete
-    for cert in uncategorized:
-        if cert.fpr not in best_for_fpr and not cert.is_valid:
-            result.to_delete.append(cert)
-
-    return result
-
-
-def print_category(
-    header: str,
-    certs: list[Cert],
-    category_type: str,
-    best_for_fpr: dict[str, list[str]] | None = None,
-):
-    """
-    Print a category of certificates with consistent formatting.
-
-    Args:
-        header: Section header
-        certs: List of cert dicts
-        category_type: One of "keep_email", "keep_no_aka", "keep_best_valid",
-                       "keep_best_expired", "to_delete"
-        best_for_fpr: Mapping from fpr to emails (for best-per-recipient categories)
-    """
-    if not certs:
-        return
-
-    print(f"\n=== {header} ===")
-
-    best_for_fpr = best_for_fpr or {}
-
-    def format_cert_line(
-        cert: Cert,
-        *,
-        emails: str | None = None,
-        expired_tag: str = "",
-    ) -> str:
-        line = f"valid until {cert.not_after}  fpr={cert.fpr}"
-        if emails is not None:
-            line += f"  aka={emails}"
-        return line + expired_tag
-
-    def format_keep_no_aka(cert: Cert) -> str:
-        expired_tag = " [EXPIRED]" if not cert.is_valid else ""
-        return format_cert_line(cert, expired_tag=expired_tag)
-
-    def format_keep_best_valid(cert: Cert) -> str:
-        emails = ", ".join(best_for_fpr.get(cert.fpr, []))
-        return format_cert_line(cert, emails=emails)
-
-    def format_keep_best_expired(cert: Cert) -> str:
-        emails = ", ".join(best_for_fpr.get(cert.fpr, []))
-        return format_cert_line(cert, emails=emails, expired_tag=" [EXPIRED]")
-
-    def format_default(cert: Cert) -> str:
-        emails = ", ".join(cert.emails)
-        expired_tag = " [EXPIRED]" if not cert.is_valid else ""
-        return format_cert_line(cert, emails=emails, expired_tag=expired_tag)
-
-    formatters = {
-        "keep_no_aka": format_keep_no_aka,
-        "keep_best_valid": format_keep_best_valid,
-        "keep_best_expired": format_keep_best_expired,
-    }
-    formatter = formatters.get(category_type, format_default)
+        res.best_for_fpr[cert.fpr].append(email)
 
     for cert in certs:
-        print(formatter(cert))
-
-
-def process_deletions(
-    to_delete: list[Cert],
-    simulate: bool,
-    verbose: bool,
-    prune_email: str | None,
-) -> int:
-    """
-    Process deletion of expired certificates.
-
-    Args:
-        to_delete: List of certs to delete
-        simulate: If True, only print what would be deleted
-        verbose: If True, print section header
-        prune_email: Limit to this email
-
-    Returns:
-        Number of certificates actually deleted (0 if simulate)
-    """
-    if not to_delete:
-        return 0
-
-    if verbose:
-        print("\n=== Deleting certificates ===")
-
-    deleted_count = 0
-
-    for cert in to_delete:
-        if prune_email and prune_email not in cert.emails:
-            continue
-        emails = ", ".join(cert.emails)
-        msg = f"deleting expired: valid until {cert.not_after}  fpr={cert.fpr}  aka={emails}"
-
-        if simulate:
-            print("[SIMULATE] " + msg)
+        if not cert.emails:
+            res.keep_no_aka.append(cert)
+        elif keep_email in cert.emails:
+            res.keep_email.append(cert)
+        elif cert.fpr in res.best_for_fpr:
+            (
+                res.keep_best_valid if cert.is_valid else res.keep_best_expired
+            ).append(cert)
+        elif cert.is_valid:
+            res.keep_best_valid.append(cert)
         else:
-            print(msg)
-            delete_cert(cert.fpr)
-            deleted_count += 1
-
-    return deleted_count
+            res.to_delete.append(cert)
+    return res
 
 
-def print_summary(
-    classified: Classified,
-    deleted_count: int,
-    simulate: bool,
-):
-    """
-    Print summary statistics.
+def print_certs(header: str, certs: list[Cert], best_for: dict = None):
+    if not certs:
+        return
+    print(f"\n=== {header} ===")
+    for cert in certs:
+        emails = (best_for or {}).get(cert.fpr) or cert.emails
+        aka = ", ".join(emails)
+        tag = " [EXPIRED]" if not cert.is_valid else ""
+        print(
+            f"valid until {cert.valid_until}  fpr={cert.fpr}  aka={aka}{tag}"
+        )
 
-    Args:
-        classified: Dict with categorized cert lists
-        deleted_count: Number of certs actually deleted
-        simulate: Whether in simulate mode
-    """
 
+def print_summary(cl: Classified, deleted: int, simulate: bool):
     def count_expired(certs: list[Cert]) -> int:
         return sum(1 for c in certs if not c.is_valid)
 
-    # Calculate stats
-    total = (
-        len(classified.keep_email)
-        + len(classified.keep_no_aka)
-        + len(classified.keep_best_valid)
-        + len(classified.keep_best_expired)
-        + len(classified.to_delete)
+    exp_keep_email = count_expired(cl.keep_email)
+    exp_no_aka = count_expired(cl.keep_no_aka)
+    exp_best = len(cl.keep_best_expired)
+
+    v_keep_email = len(cl.keep_email) - exp_keep_email
+    v_no_aka = len(cl.keep_no_aka) - exp_no_aka
+    v_best = len(cl.keep_best_valid)
+
+    total_valid = v_keep_email + v_no_aka + v_best
+    total_parsed = sum(
+        len(getattr(cl, f))
+        for f in [
+            "keep_email",
+            "keep_no_aka",
+            "keep_best_valid",
+            "keep_best_expired",
+            "to_delete",
+        ]
     )
+    total_expired = exp_keep_email + exp_no_aka + exp_best + len(cl.to_delete)
 
-    expired_keep_email = count_expired(classified.keep_email)
-    expired_keep_no_aka = count_expired(classified.keep_no_aka)
-    # keep_best_expired are all expired by definition
-    expired_keep_best = len(classified.keep_best_expired)
-
-    valid_keep_email = len(classified.keep_email) - expired_keep_email
-    valid_keep_no_aka = len(classified.keep_no_aka) - expired_keep_no_aka
-    valid_keep_best = len(classified.keep_best_valid)
-    total_valid_kept = valid_keep_email + valid_keep_no_aka + valid_keep_best
-
-    total_expired_found = (
-        expired_keep_email
-        + expired_keep_no_aka
-        + expired_keep_best
-        + len(classified.to_delete)
+    print(
+        f"""
+Parsed cert entries:                      {total_parsed}
+Expired entries found:                    {total_expired}
+Expired kept (keep-email):                {exp_keep_email}
+Expired kept (best-per-email):            {exp_best}
+Expired kept (no aka):                    {exp_no_aka}
+Valid kept (keep-email):                  {v_keep_email}
+Valid kept (best-per-email):              {v_best}
+Valid kept (no aka):                      {v_no_aka}
+Valid kept (total):                       {total_valid}
+Expired deleted:                          {deleted}{" (simulate mode)" if simulate else ""}
+Entries with no aka (never delete):       {len(cl.keep_no_aka)}"""
     )
-
-    summary = f"""
-
-Parsed cert entries:                      {total}
-Expired entries found:                    {total_expired_found}
-Expired kept (keep-email):                {expired_keep_email}
-Expired kept (best-per-email):            {expired_keep_best}
-Expired kept (no aka):                    {expired_keep_no_aka}
-Valid kept (keep-email):                  {valid_keep_email}
-Valid kept (best-per-email):              {valid_keep_best}
-Valid kept (no aka):                      {valid_keep_no_aka}
-Valid kept (total):                       {total_valid_kept}
-Expired deleted:                          {deleted_count}{" (simulate mode)" if simulate else ""}
-Entries with no aka (never delete):       {len(classified.keep_no_aka)}
-"""
-    print(summary)
 
 
 def main():
@@ -410,11 +225,7 @@ Use --prune-email to limit deletion of expired certificates to this recipient.
         required=True,
         help="Email address for which ALL certs are kept (e.g. your own).",
     )
-    ap.add_argument(
-        "-p",
-        "--prune-email",
-        help="Limit pruning to this email.",
-    )
+    ap.add_argument("-p", "--prune-email", help="Limit pruning to this email.")
     ap.add_argument(
         "-s",
         "--simulate",
@@ -435,47 +246,43 @@ Use --prune-email to limit deletion of expired certificates to this recipient.
     )
     now = datetime.now(timezone.utc)
 
-    # Parse gpgsm output
-    certs = parse_gpgsm_certs(now, keep_email)
+    cl = classify_certs(parse_gpgsm_certs(now, keep_email), keep_email)
 
-    # Classify certificates into categories
-    classified = classify_certs(certs, keep_email)
-
-    # Verbose output - show what we're keeping
     if args.verbose:
-        print_category(
-            "Certificates kept for --keep-email",
-            classified.keep_email,
-            "keep_email",
-        )
-        print_category(
-            "Certificates kept as best for recipient (valid)",
-            classified.keep_best_valid,
-            "keep_best_valid",
-            classified.best_for_fpr,
-        )
-        print_category(
-            "Certificates kept as best for recipient (expired - no valid alternative)",
-            classified.keep_best_expired,
-            "keep_best_expired",
-            classified.best_for_fpr,
-        )
-        print_category(
-            "Certificates kept (no aka - safety)",
-            classified.keep_no_aka,
-            "keep_no_aka",
-        )
+        print_certs("Keep-email", cl.keep_email)
+        print_certs("Best valid", cl.keep_best_valid, cl.best_for_fpr)
+        print_certs("Best expired", cl.keep_best_expired, cl.best_for_fpr)
+        print_certs("No AKA (safety)", cl.keep_no_aka)
 
-    # Process deletions
-    deleted_count = process_deletions(
-        classified.to_delete,
-        args.simulate,
-        args.verbose,
-        prune_email,
-    )
+    deleted = 0
+    if cl.to_delete:
+        if args.verbose or not args.simulate:
+            print("\n=== Deleting certificates ===")
+        for cert in cl.to_delete:
+            if prune_email and prune_email not in cert.emails:
+                continue
+            msg = f"deleting expired: valid until {cert.valid_until}  fpr={cert.fpr}  aka={', '.join(cert.emails)}"
 
-    # Print summary
-    print_summary(classified, deleted_count, args.simulate)
+            print(f"{'[SIMULATE] ' if args.simulate else ''}{msg}")
+            if not args.simulate:
+                try:
+                    subprocess.run(
+                        [
+                            "gpgsm",
+                            "--batch",
+                            "--yes",
+                            "--delete-key",
+                            cert.fpr,
+                        ],
+                        check=True,
+                    )
+                    deleted += 1
+                except subprocess.CalledProcessError:
+                    print(
+                        f"Error: Failed to delete {cert.fpr}", file=sys.stderr
+                    )
+
+    print_summary(cl, deleted, args.simulate)
 
 
 if __name__ == "__main__":
