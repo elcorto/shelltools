@@ -1,0 +1,451 @@
+#!/usr/bin/env python
+
+import argparse
+import os
+import shutil
+import sqlite3
+import stat
+import subprocess
+from dataclasses import dataclass
+from datetime import date, datetime
+from pathlib import Path
+import re
+
+from textual.app import App, ComposeResult
+from textual.binding import Binding
+from textual.widgets import DataTable, Input, Static
+
+
+HOME_DIRECTORY = str(Path.home())
+TITLE_COLUMN_WIDTH = 512
+DIRECTORY_DISPLAY_MAX_CHARS = 48
+
+
+@dataclass(frozen=True)
+class SessionRow:
+    id: str
+    directory: str
+    model: str
+    title: str
+    time_updated: int
+    display_updated: str
+    display_directory: str
+    search_text: str
+
+
+def format_directory(path_value: str, max_chars: int) -> str:
+    session_path = Path(path_value)
+    home_path = Path(HOME_DIRECTORY)
+    try:
+        relative_path = session_path.relative_to(home_path)
+    except ValueError:
+        pass
+    else:
+        if str(relative_path) == ".":
+            path_value = "~"
+        else:
+            path_value = f"~/{relative_path.as_posix()}"
+
+    if len(path_value) <= max_chars:
+        return path_value
+
+    parts = path_value.split("/")
+    if len(parts) > 2:
+        first = parts[0]
+        for tail_count in range(len(parts) - 1, 0, -1):
+            candidate = "/".join([first, "..."] + parts[-tail_count:])
+            if len(candidate) <= max_chars:
+                return candidate
+        candidate = f"{first}/..."
+        if len(candidate) <= max_chars:
+            return candidate
+
+    return f"...{path_value[-(max_chars - 3) :]}"
+
+
+def format_date(updated_timestamp_ms: int) -> str:
+    dt = datetime.fromtimestamp(updated_timestamp_ms / 1000)
+    if dt.year == date.today().year:
+        return dt.strftime("%m-%d %H:%M")
+
+    return dt.strftime("%Y-%m-%d %H:%M")
+
+
+def load_sessions(
+    database_path: Path,
+    include_subagent_sessions: bool,
+) -> list[SessionRow]:
+    subagent_clause = ""
+    if not include_subagent_sessions:
+        subagent_clause = "AND session.parent_id IS NULL"
+
+    query = f"""
+    WITH latest_model AS (
+        SELECT
+            session_id,
+            json_extract(data, '$.modelID') AS model_id,
+            ROW_NUMBER() OVER (
+                PARTITION BY session_id
+                ORDER BY time_updated DESC
+            ) AS row_num
+        FROM message
+        WHERE json_extract(data, '$.role') = 'assistant'
+            AND json_extract(data, '$.modelID') IS NOT NULL
+    )
+    SELECT
+        session.id,
+        session.directory,
+        session.title,
+        session.time_updated,
+        latest_model.model_id
+    FROM session
+    LEFT JOIN latest_model
+        ON latest_model.session_id = session.id
+        AND latest_model.row_num = 1
+    WHERE session.time_archived IS NULL
+        {subagent_clause}
+    ORDER BY session.time_updated DESC
+    """
+    with sqlite3.connect(database_path) as connection:
+        connection.row_factory = sqlite3.Row
+        rows = connection.execute(query).fetchall()
+
+    session_rows = []
+    for database_row in rows:
+        session_id = database_row["id"]
+        directory = database_row["directory"]
+        model = database_row["model_id"] or "-"
+        title = database_row["title"]
+        time_updated = database_row["time_updated"]
+
+        display_updated = format_date(time_updated)
+        display_directory = format_directory(
+            directory, DIRECTORY_DISPLAY_MAX_CHARS
+        )
+        search_text = f"{display_updated} {directory} {model} {title}"
+
+        session_rows.append(
+            SessionRow(
+                id=session_id,
+                directory=directory,
+                model=model,
+                title=title,
+                time_updated=time_updated,
+                display_updated=display_updated,
+                display_directory=display_directory,
+                search_text=search_text,
+            )
+        )
+    return session_rows
+
+
+def filter_sessions(
+    session_rows: list[SessionRow],
+    query: str,
+) -> list[SessionRow]:
+    stripped_query = query.strip()
+    if not stripped_query:
+        return list(session_rows)
+
+    rex = re.compile(stripped_query, re.IGNORECASE)
+    return [row for row in session_rows if rex.search(row.search_text)]
+
+
+def validate_session_directory(directory: str) -> str | None:
+    try:
+        directory_stat = os.stat(directory)
+    except OSError as error:
+        reason = error.strerror or str(error)
+        return f"can't access {directory}: {reason}"
+
+    if not stat.S_ISDIR(directory_stat.st_mode):
+        return f"can't access {directory}: not a directory"
+
+    if not os.access(directory, os.R_OK | os.X_OK):
+        return f"can't access {directory}: permission denied"
+
+    return None
+
+
+def get_opencode_command() -> str:
+    for command_name in ["opencode-cli", "opencode"]:
+        if shutil.which(command_name) is not None:
+            return command_name
+
+    raise FileNotFoundError("could not find 'opencode-cli' or 'opencode'")
+
+
+class SessionApp(App[SessionRow | None]):
+    CSS = """
+    Screen {
+        layout: vertical;
+        color: #c9c0a7;
+    }
+
+    #query {
+        margin: 0 1;
+        border: round $panel;
+        color: #c9c0a7;
+    }
+
+    #query:focus {
+        border: round $panel;
+        background-tint: 0%;
+    }
+
+    #sessions {
+        height: 1fr;
+        margin: 0 1;
+        color: #c9c0a7;
+        scrollbar-size-horizontal: 0;
+        overflow-x: hidden;
+    }
+
+    #sessions > .datatable--header,
+    #sessions > .datatable--fixed {
+        color: #c9c0a7;
+    }
+
+    #sessions > .datatable--cursor,
+    #sessions:focus > .datatable--cursor,
+    #sessions > .datatable--fixed-cursor,
+    #sessions:focus > .datatable--fixed-cursor {
+        background: #4d4d4d;
+        color: #c9c0a7;
+    }
+
+    #status {
+        height: 1;
+        margin: 0 1;
+        color: #c9c0a7;
+    }
+
+    #details {
+        height: 7;
+        margin: 0 1;
+        border: round $panel;
+        color: #c9c0a7;
+    }
+    """
+
+    BINDINGS = [
+        Binding("enter", "launch_selected", "Launch", priority=True),
+        Binding(
+            "up", "select_previous", "Previous", show=False, priority=True
+        ),
+        Binding("down", "select_next", "Next", show=False, priority=True),
+        Binding(
+            "tab", "focus_query", "Focus query", show=False, priority=True
+        ),
+        Binding(
+            "shift+tab",
+            "focus_query",
+            "Focus query",
+            show=False,
+            priority=True,
+        ),
+        Binding("ctrl+c", "quit", "Quit", show=False, priority=True),
+    ]
+
+    def __init__(
+        self,
+        database_path: Path,
+        include_subagent_sessions: bool,
+    ) -> None:
+        super().__init__()
+        self.database_path = database_path
+        self.include_subagent_sessions = include_subagent_sessions
+        self.all_sessions: list[SessionRow] = []
+        self.visible_sessions: list[SessionRow] = []
+        self.query_input: Input
+        self.sessions_table: DataTable
+        self.details_pane: Static
+        self.status_line: Static
+
+    def compose(self) -> ComposeResult:
+        query_input = Input(
+            placeholder="Filter sessions (regex) ...", id="query"
+        )
+        query_input.cursor_blink = False
+        yield query_input
+        yield DataTable(id="sessions")
+        yield Static("", id="details", markup=False)
+        yield Static("", id="status", markup=False)
+
+    def on_mount(self) -> None:
+        self.query_input = self.query_one("#query", Input)
+        self.sessions_table = self.query_one("#sessions", DataTable)
+        self.details_pane = self.query_one("#details", Static)
+        self.status_line = self.query_one("#status", Static)
+
+        self.sessions_table.cursor_type = "row"
+        self.sessions_table.add_column("updated")
+        self.sessions_table.add_column("directory")
+        self.sessions_table.add_column("model")
+        self.sessions_table.add_column("title", width=TITLE_COLUMN_WIDTH)
+
+        try:
+            self.all_sessions = load_sessions(
+                self.database_path,
+                include_subagent_sessions=self.include_subagent_sessions,
+            )
+        except sqlite3.Error as error:
+            self.set_status(f"database error: {error}")
+            self.visible_sessions = []
+        else:
+            self.visible_sessions = list(self.all_sessions)
+
+        self.refresh_table()
+        self.query_input.focus()
+
+    def on_input_changed(self, _event: Input.Changed) -> None:
+        self.apply_filter()
+
+    def on_input_submitted(self, _event: Input.Submitted) -> None:
+        self.action_launch_selected()
+
+    def on_data_table_row_highlighted(
+        self, _event: DataTable.RowHighlighted
+    ) -> None:
+        self.set_default_status()
+        self.update_details()
+
+    def refresh_table(self) -> None:
+        self.sessions_table.clear()
+        for session_row in self.visible_sessions:
+            self.sessions_table.add_row(
+                session_row.display_updated,
+                session_row.display_directory,
+                session_row.model,
+                session_row.title,
+            )
+
+        if self.visible_sessions:
+            self.sessions_table.move_cursor(row=0, column=0)
+        else:
+            self.update_details()
+
+        self.set_default_status()
+
+    def set_status(self, message: str) -> None:
+        self.status_line.update(
+            f"{message} | open session: Enter | exit: Ctrl-c"
+        )
+
+    def set_default_status(self) -> None:
+        if self.visible_sessions:
+            self.set_status(f"{len(self.visible_sessions)} sessions")
+            return
+
+        self.set_status("no matches")
+
+    def get_selected_session(self) -> SessionRow | None:
+        if not self.visible_sessions:
+            return None
+
+        selected_index = self.sessions_table.cursor_row
+        if selected_index < 0 or selected_index >= len(self.visible_sessions):
+            return None
+
+        return self.visible_sessions[selected_index]
+
+    def update_details(self) -> None:
+        session_row = self.get_selected_session()
+        if session_row is None:
+            self.details_pane.update("No session selected")
+            return
+
+        self.details_pane.update(
+            f"updated: {session_row.display_updated}\n"
+            f"directory: {session_row.directory}\n"
+            f"model: {session_row.model}\n"
+            f"title: {session_row.title}\n"
+            f"id: {session_row.id}"
+        )
+
+    def apply_filter(self) -> None:
+        query_value = self.query_input.value
+        try:
+            self.visible_sessions = filter_sessions(
+                self.all_sessions,
+                query_value,
+            )
+        except re.error as error:
+            self.set_status(f"invalid regex: {error.msg}")
+            return
+
+        self.refresh_table()
+
+    def action_launch_selected(self) -> None:
+        session_row = self.get_selected_session()
+        if not session_row:
+            self.set_status(
+                "no session selected"
+                if not self.visible_sessions
+                else "invalid selection"
+            )
+            return
+
+        directory_error = validate_session_directory(session_row.directory)
+        if directory_error is not None:
+            self.set_status(directory_error)
+            return
+
+        self.exit(session_row)
+
+    def action_select_previous(self) -> None:
+        self.sessions_table.action_cursor_up()
+        self.query_input.focus()
+
+    def action_select_next(self) -> None:
+        self.sessions_table.action_cursor_down()
+        self.query_input.focus()
+
+    def action_focus_query(self) -> None:
+        self.query_input.focus()
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="""Browse and launch opencode sessions. We query the
+        opencode SQLite database to access all sessions: global (directory=$HOME
+        most likely) and project (directory=/path/to/some/git/repo)."""
+    )
+    parser.add_argument(
+        "--db",
+        default="~/.local/share/opencode/opencode.db",
+        help="Path to opencode SQLite database [default: %(default)s]",
+    )
+    parser.add_argument(
+        "-s",
+        "--sub",
+        action="store_true",
+        help="Include subagent sessions in list",
+    )
+
+    arguments = parser.parse_args()
+    database_path = Path(arguments.db).expanduser()
+
+    if not database_path.is_file():
+        raise FileNotFoundError(f"database not found: {database_path}")
+
+    session_app = SessionApp(
+        database_path=database_path,
+        include_subagent_sessions=arguments.sub,
+    )
+    selected_session = session_app.run()
+
+    if selected_session is None:
+        return 0
+
+    subprocess.run(
+        [get_opencode_command(), "-s", selected_session.id],
+        cwd=selected_session.directory,
+        check=False,
+    )
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
