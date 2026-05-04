@@ -32,6 +32,7 @@ class SessionRow:
     title: str
     time_updated: int
     display_updated: str
+    display_updated_full: str
     display_directory: str
     mode_models: tuple[tuple[str, str], ...]
     search_text: str
@@ -73,6 +74,12 @@ def format_date(updated_timestamp_ms: int) -> str:
         return dt.strftime("%m-%d %H:%M")
 
     return dt.strftime("%Y-%m-%d %H:%M")
+
+
+def format_full_date(updated_timestamp_ms: int) -> str:
+    return datetime.fromtimestamp(updated_timestamp_ms / 1000).strftime(
+        "%Y-%m-%d %H:%M"
+    )
 
 
 def sort_mode_models(
@@ -177,6 +184,7 @@ def load_sessions(
         time_updated = database_row["time_updated"]
 
         display_updated = format_date(time_updated)
+        display_updated_full = format_full_date(time_updated)
         display_directory = format_directory(
             directory, DIRECTORY_DISPLAY_MAX_CHARS
         )
@@ -194,6 +202,7 @@ def load_sessions(
                 title=title,
                 time_updated=time_updated,
                 display_updated=display_updated,
+                display_updated_full=display_updated_full,
                 display_directory=display_directory,
                 mode_models=mode_models,
                 search_text=search_text,
@@ -419,9 +428,9 @@ class SessionApp(App[SessionRow | None]):
             return
 
         details_text = Text()
-        details_text.append(f"updated: {session_row.display_updated}\n")
+        details_text.append(f"updated: {session_row.display_updated_full}\n")
         details_text.append(f"directory: {session_row.directory}\n")
-        details_text.append(f"models: ")
+        details_text.append("models: ")
         if session_row.mode_models:
             for index, (mode, model) in enumerate(session_row.mode_models):
                 if index > 0:
