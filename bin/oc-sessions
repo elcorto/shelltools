@@ -11,6 +11,7 @@ from datetime import date, datetime
 from pathlib import Path
 import re
 
+from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.widgets import DataTable, Input, Static
@@ -19,6 +20,7 @@ from textual.widgets import DataTable, Input, Static
 HOME_DIRECTORY = str(Path.home())
 TITLE_COLUMN_WIDTH = 512
 DIRECTORY_DISPLAY_MAX_CHARS = 48
+PRIMARY_MODE_ORDER = ["plan", "build"]
 
 
 @dataclass(frozen=True)
@@ -26,10 +28,12 @@ class SessionRow:
     id: str
     directory: str
     model: str
+    mode: str
     title: str
     time_updated: int
     display_updated: str
     display_directory: str
+    mode_models: tuple[tuple[str, str], ...]
     search_text: str
 
 
@@ -71,6 +75,22 @@ def format_date(updated_timestamp_ms: int) -> str:
     return dt.strftime("%Y-%m-%d %H:%M")
 
 
+def sort_mode_models(
+    mode_models: list[tuple[str, str]],
+) -> tuple[tuple[str, str], ...]:
+    return tuple(
+        sorted(
+            mode_models,
+            key=lambda mode_model: (
+                mode_model[0] not in PRIMARY_MODE_ORDER,
+                PRIMARY_MODE_ORDER.index(mode_model[0])
+                if mode_model[0] in PRIMARY_MODE_ORDER
+                else mode_model[0],
+            ),
+        )
+    )
+
+
 def load_sessions(
     database_path: Path,
     include_subagent_sessions: bool,
@@ -83,6 +103,7 @@ def load_sessions(
     WITH latest_model AS (
         SELECT
             session_id,
+            json_extract(data, '$.mode') AS mode,
             json_extract(data, '$.modelID') AS model_id,
             ROW_NUMBER() OVER (
                 PARTITION BY session_id
@@ -97,6 +118,7 @@ def load_sessions(
         session.directory,
         session.title,
         session.time_updated,
+        latest_model.mode,
         latest_model.model_id
     FROM session
     LEFT JOIN latest_model
@@ -106,21 +128,60 @@ def load_sessions(
         {subagent_clause}
     ORDER BY session.time_updated DESC
     """
+    mode_query = f"""
+    WITH latest_mode_model AS (
+        SELECT
+            message.session_id,
+            json_extract(message.data, '$.mode') AS mode,
+            json_extract(message.data, '$.modelID') AS model_id,
+            ROW_NUMBER() OVER (
+                PARTITION BY
+                    message.session_id,
+                    json_extract(message.data, '$.mode')
+                ORDER BY message.time_updated DESC
+            ) AS row_num
+        FROM message
+        JOIN session
+            ON session.id = message.session_id
+        WHERE session.time_archived IS NULL
+            {subagent_clause}
+            AND json_extract(message.data, '$.role') = 'assistant'
+            AND json_extract(message.data, '$.modelID') IS NOT NULL
+            AND json_extract(message.data, '$.mode') IS NOT NULL
+    )
+    SELECT
+        session_id,
+        mode,
+        model_id
+    FROM latest_mode_model
+    WHERE row_num = 1
+    """
     with sqlite3.connect(database_path) as connection:
         connection.row_factory = sqlite3.Row
         rows = connection.execute(query).fetchall()
+        mode_rows = connection.execute(mode_query).fetchall()
+
+    mode_models_by_session: dict[str, list[tuple[str, str]]] = {}
+    for mode_row in mode_rows:
+        mode_models_by_session.setdefault(mode_row["session_id"], []).append(
+            (mode_row["mode"], mode_row["model_id"])
+        )
 
     session_rows = []
     for database_row in rows:
         session_id = database_row["id"]
         directory = database_row["directory"]
         model = database_row["model_id"] or "-"
+        mode = database_row["mode"] or ""
         title = database_row["title"]
         time_updated = database_row["time_updated"]
 
         display_updated = format_date(time_updated)
         display_directory = format_directory(
             directory, DIRECTORY_DISPLAY_MAX_CHARS
+        )
+        mode_models = sort_mode_models(
+            mode_models_by_session.get(session_id, [])
         )
         search_text = f"{display_updated} {directory} {model} {title}"
 
@@ -129,10 +190,12 @@ def load_sessions(
                 id=session_id,
                 directory=directory,
                 model=model,
+                mode=mode,
                 title=title,
                 time_updated=time_updated,
                 display_updated=display_updated,
                 display_directory=display_directory,
+                mode_models=mode_models,
                 search_text=search_text,
             )
         )
@@ -355,13 +418,26 @@ class SessionApp(App[SessionRow | None]):
             self.details_pane.update("No session selected")
             return
 
-        self.details_pane.update(
-            f"updated: {session_row.display_updated}\n"
-            f"directory: {session_row.directory}\n"
-            f"model: {session_row.model}\n"
-            f"title: {session_row.title}\n"
-            f"id: {session_row.id}"
-        )
+        details_text = Text()
+        details_text.append(f"updated: {session_row.display_updated}\n")
+        details_text.append(f"directory: {session_row.directory}\n")
+        details_text.append(f"models: ")
+        if session_row.mode_models:
+            for index, (mode, model) in enumerate(session_row.mode_models):
+                if index > 0:
+                    details_text.append(" ")
+                details_text.append(
+                    f"{mode}:{model}",
+                    style="italic"
+                    if mode == session_row.mode and model == session_row.model
+                    else "",
+                )
+        else:
+            details_text.append("-")
+        details_text.append("\n")
+        details_text.append(f"title: {session_row.title}\n")
+        details_text.append(f"id: {session_row.id}")
+        self.details_pane.update(details_text)
 
     def apply_filter(self) -> None:
         query_value = self.query_input.value
